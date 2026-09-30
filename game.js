@@ -482,108 +482,269 @@
             return envSeed / 4294967296;
         }
 
-        const mossMatA = new THREE.MeshStandardMaterial({ color: 0x275f2c, roughness: 1.0, flatShading: true });
-        const mossMatB = new THREE.MeshStandardMaterial({ color: 0x3d7a35, roughness: 0.95, flatShading: true });
-        const wetRockMat = new THREE.MeshStandardMaterial({ color: 0x263a32, roughness: 0.52, metalness: 0.08, flatShading: true });
+        // STEP 4: SEMI-REALISTIC VEGETATION (Vines, Ferns, Roots, Moss Clusters & Floating Leaves)
+        // ---------------------------------------------------------------------------------------
+        const vegGroup = new THREE.Group();
+        envRoot.add(vegGroup);
 
-        // Small moss/stone clumps hug the wall without affecting collision
-        for (let i = 0; i < (MOBILE_RENDER_BUDGET ? 34 : 68); i++) {
-            const a = envRand() * Math.PI * 2;
-            const y = 1.5 + envRand() * (WELL_HEIGHT - 4);
-            const r = WELL_RADIUS - 0.11;
-            const cluster = new THREE.Mesh(
-                new THREE.IcosahedronGeometry(0.18 + envRand() * 0.34, 0),
-                envRand() > 0.34 ? mossMatA : mossMatB
-            );
-            cluster.position.set(Math.cos(a) * r, y, Math.sin(a) * r);
-            cluster.scale.set(1.7 + envRand() * 1.7, 0.42 + envRand() * 0.8, 0.40 + envRand() * 0.42);
-            cluster.rotation.set(envRand() * Math.PI, -a, envRand() * 0.8);
-            cluster.castShadow = false;
-            cluster.receiveShadow = true;
-            envRoot.add(cluster);
+        // 1. MOSS CLUSTERS (2 Color Variants via InstancedMesh for 60 FPS)
+        // Flattened pillows hugging wall mortar & platform perimeters
+        const mossGeo = new THREE.DodecahedronGeometry(0.22, 1);
+        mossGeo.scale(1.4, 0.45, 0.55); // natural flattened cushion
 
-            if (i % 5 === 0) {
-                const pebble = new THREE.Mesh(new THREE.IcosahedronGeometry(0.12 + envRand() * 0.20, 0), wetRockMat);
-                pebble.position.copy(cluster.position);
-                pebble.position.y -= 0.28 + envRand() * 0.45;
-                pebble.position.multiplyScalar(0.996);
-                pebble.scale.set(1.4, 0.7, 0.8);
-                envRoot.add(pebble);
+        const mossMatDark = new THREE.MeshStandardMaterial({ color: 0x1f4e24, roughness: 1.0, flatShading: true });
+        const mossMatLight = new THREE.MeshStandardMaterial({ color: 0x3d752e, roughness: 0.95, flatShading: true });
+
+        const mossCount = MOBILE_RENDER_BUDGET ? 36 : 64;
+        const mossMeshA = new THREE.InstancedMesh(mossGeo, mossMatDark, mossCount);
+        const mossMeshB = new THREE.InstancedMesh(mossGeo, mossMatLight, mossCount);
+        const vegDummy = new THREE.Object3D();
+
+        for (let i = 0; i < mossCount; i++) {
+            // Layer A: Deep damp moss (denser in lower-middle zone)
+            const aA = envRand() * Math.PI * 2;
+            const yA = 1.8 + envRand() * (WELL_HEIGHT - 6);
+            const rA = WELL_RADIUS - 0.08;
+            vegDummy.position.set(Math.cos(aA) * rA, yA, Math.sin(aA) * rA);
+            vegDummy.rotation.set(envRand() * 0.4, -aA - Math.PI / 2, envRand() * 0.4);
+            const scA = 0.75 + envRand() * 1.35;
+            vegDummy.scale.set(scA, scA * (0.8 + envRand() * 0.5), scA);
+            vegDummy.updateMatrix();
+            mossMeshA.setMatrixAt(i, vegDummy.matrix);
+
+            // Layer B: Vibrant lime velvet moss (more in middle-upper light zone)
+            const aB = envRand() * Math.PI * 2;
+            const yB = 10.0 + envRand() * (WELL_HEIGHT - 12);
+            const rB = WELL_RADIUS - 0.08;
+            vegDummy.position.set(Math.cos(aB) * rB, yB, Math.sin(aB) * rB);
+            vegDummy.rotation.set(envRand() * 0.4, -aB - Math.PI / 2, envRand() * 0.4);
+            const scB = 0.65 + envRand() * 1.15;
+            vegDummy.scale.set(scB, scB * (0.7 + envRand() * 0.6), scB);
+            vegDummy.updateMatrix();
+            mossMeshB.setMatrixAt(i, vegDummy.matrix);
+        }
+        mossMeshA.instanceMatrix.needsUpdate = true;
+        mossMeshB.instanceMatrix.needsUpdate = true;
+        mossMeshA.receiveShadow = true;
+        mossMeshB.receiveShadow = true;
+        vegGroup.add(mossMeshA);
+        vegGroup.add(mossMeshB);
+
+        // 2. FERN VARIANTS (2 Variants via InstancedMesh)
+        // Variant 1: Wall-Crevice Fan Fern (Spreading rosette of fronds)
+        // Variant 2: Drooping Shelf Fern (Arching cascade over ledges)
+        const fernMatA = new THREE.MeshStandardMaterial({ color: 0x245829, roughness: 0.88, side: THREE.DoubleSide });
+        const fernMatB = new THREE.MeshStandardMaterial({ color: 0x3b7736, roughness: 0.90, side: THREE.DoubleSide });
+
+        // Fan fern geometry: curved blades
+        const fernFanGeo = new THREE.PlaneGeometry(0.18, 0.68, 1, 2);
+        const posFan = fernFanGeo.attributes.position;
+        for (let i = 0; i < posFan.count; i++) {
+            const y = posFan.getY(i);
+            if (y > 0.1) {
+                posFan.setZ(i, (y * y) * 0.25);
             }
         }
+        fernFanGeo.computeVertexNormals();
 
-        // Hanging vines follow the cylindrical wall, giving strong vertical scale cues
-        const vineMat = new THREE.MeshStandardMaterial({ color: 0x2f7133, roughness: 0.92 });
-        for (let i = 0; i < (MOBILE_RENDER_BUDGET ? 7 : 11); i++) {
+        const fernCount = MOBILE_RENDER_BUDGET ? 24 : 44;
+        const fernFanMesh = new THREE.InstancedMesh(fernFanGeo, fernMatA, fernCount * 3);
+        let fanIdx = 0;
+        for (let i = 0; i < fernCount; i++) {
             const a = envRand() * Math.PI * 2;
-            const startY = 16 + envRand() * 47;
-            const len = 7 + envRand() * 15;
-            const points = [];
-            for (let p = 0; p < 6; p++) {
-                const t = p / 5;
-                const sway = Math.sin(t * Math.PI * 2 + i) * (0.10 + envRand() * 0.12);
-                const aa = a + sway;
-                const rr = WELL_RADIUS - 0.14 - Math.sin(t * Math.PI) * 0.04;
-                points.push(new THREE.Vector3(Math.cos(aa) * rr, startY - t * len, Math.sin(aa) * rr));
+            const y = 3.5 + envRand() * (WELL_HEIGHT - 8);
+            const r = WELL_RADIUS - 0.10;
+            const cx = Math.cos(a) * r;
+            const cz = Math.sin(a) * r;
+            const baseRotY = -a - Math.PI / 2;
+
+            for (let b = 0; b < 3; b++) {
+                vegDummy.position.set(cx, y, cz);
+                vegDummy.rotation.set(-0.25 + (b - 1) * 0.35, baseRotY, (b - 1) * 0.38);
+                const s = 0.85 + envRand() * 0.65;
+                vegDummy.scale.set(s, s, s);
+                vegDummy.updateMatrix();
+                fernFanMesh.setMatrixAt(fanIdx++, vegDummy.matrix);
             }
-            const curve = new THREE.CatmullRomCurve3(points);
-            const vine = new THREE.Mesh(new THREE.TubeGeometry(curve, 22, 0.035, 5, false), vineMat);
-            envRoot.add(vine);
         }
+        fernFanMesh.instanceMatrix.needsUpdate = true;
+        vegGroup.add(fernFanMesh);
 
-        // Thick old roots snake down from the opening. They are visual only.
-        const rootMat = new THREE.MeshStandardMaterial({ color: 0x3a2517, roughness: 0.96, metalness: 0.0 });
-        const rootTipMat = new THREE.MeshStandardMaterial({ color: 0x24160f, roughness: 1.0 });
-        const rootCount = MOBILE_RENDER_BUDGET ? 6 : 9;
-        for (let i = 0; i < rootCount; i++) {
+        // Drooping fern geometry (arching downwards over ledges)
+        const fernDroopGeo = new THREE.PlaneGeometry(0.14, 0.82, 1, 2);
+        const posDroop = fernDroopGeo.attributes.position;
+        for (let i = 0; i < posDroop.count; i++) {
+            const y = posDroop.getY(i);
+            if (y > 0.0) {
+                posDroop.setZ(i, -(y * y) * 0.35);
+            }
+        }
+        fernDroopGeo.computeVertexNormals();
+
+        const droopCount = MOBILE_RENDER_BUDGET ? 18 : 32;
+        const fernDroopMesh = new THREE.InstancedMesh(fernDroopGeo, fernMatB, droopCount * 2);
+        let droopIdx = 0;
+        for (let i = 0; i < droopCount; i++) {
             const a = envRand() * Math.PI * 2;
-            const startY = WELL_HEIGHT + 1.1 + envRand() * 2.8;
-            const len = 9 + envRand() * 19;
+            const y = 6.0 + envRand() * (WELL_HEIGHT - 10);
+            const r = WELL_RADIUS - 0.10;
+            const cx = Math.cos(a) * r;
+            const cz = Math.sin(a) * r;
+            const baseRotY = -a - Math.PI / 2;
+
+            for (let b = 0; b < 2; b++) {
+                vegDummy.position.set(cx, y, cz);
+                vegDummy.rotation.set(0.65 + (b - 0.5) * 0.28, baseRotY, (b - 0.5) * 0.40);
+                const s = 0.80 + envRand() * 0.60;
+                vegDummy.scale.set(s, s, s);
+                vegDummy.updateMatrix();
+                fernDroopMesh.setMatrixAt(droopIdx++, vegDummy.matrix);
+            }
+        }
+        fernDroopMesh.instanceMatrix.needsUpdate = true;
+        vegGroup.add(fernDroopMesh);
+
+        // 3. VINES (3 Variants: Creeping Ivy, Hanging Lianas, Twisted Tendrils)
+        const vineStemMat = new THREE.MeshStandardMaterial({ color: 0x224823, roughness: 0.94 });
+        const vineLeafMat = new THREE.MeshStandardMaterial({ color: 0x32692c, roughness: 0.86, side: THREE.DoubleSide });
+        const vineLeafGeo = new THREE.CircleGeometry(0.13, 5);
+
+        // Pre-count leaves for Ivy InstancedMesh
+        const ivyCount = MOBILE_RENDER_BUDGET ? 6 : 10;
+        const ivyLeavesMesh = new THREE.InstancedMesh(vineLeafGeo, vineLeafMat, ivyCount * 14);
+        let ivyLeafIdx = 0;
+
+        // Variant 1: Creeping Ivy with leaves hugging the wall
+        for (let i = 0; i < ivyCount; i++) {
+            const a = envRand() * Math.PI * 2;
+            const startY = 12 + envRand() * 45;
+            const len = 6 + envRand() * 12;
             const points = [];
             for (let p = 0; p < 7; p++) {
                 const t = p / 6;
-                const bend = Math.sin(t * Math.PI * 1.4 + i * 0.8) * (0.05 + t * 0.13);
-                const aa = a + bend;
-                const rr = WELL_RADIUS - 0.09 - Math.sin(t * Math.PI) * (0.05 + envRand() * 0.05);
+                const sway = Math.sin(t * Math.PI * 2.2 + i * 1.5) * (0.08 + envRand() * 0.08);
+                const aa = a + sway;
+                const rr = WELL_RADIUS - 0.12 - Math.sin(t * Math.PI) * 0.03;
+                const pt = new THREE.Vector3(Math.cos(aa) * rr, startY - t * len, Math.sin(aa) * rr);
+                points.push(pt);
+
+                // Add ivy leaves along the spine
+                if (p > 0 && ivyLeafIdx < ivyCount * 14) {
+                    for (let lf = 0; lf < 2; lf++) {
+                        const side = lf === 0 ? 1 : -1;
+                        vegDummy.position.set(
+                            pt.x + Math.sin(aa) * side * 0.12,
+                            pt.y + (envRand() - 0.5) * 0.15,
+                            pt.z - Math.cos(aa) * side * 0.12
+                        );
+                        vegDummy.rotation.set(envRand() * 0.4, -aa - Math.PI / 2, (envRand() - 0.5) * 0.5);
+                        vegDummy.scale.setScalar(0.7 + envRand() * 0.7);
+                        vegDummy.updateMatrix();
+                        ivyLeavesMesh.setMatrixAt(ivyLeafIdx++, vegDummy.matrix);
+                    }
+                }
+            }
+            const curve = new THREE.CatmullRomCurve3(points);
+            const tube = new THREE.Mesh(new THREE.TubeGeometry(curve, 18, 0.028, 4, false), vineStemMat);
+            tube.receiveShadow = true;
+            vegGroup.add(tube);
+        }
+        ivyLeavesMesh.instanceMatrix.needsUpdate = true;
+        vegGroup.add(ivyLeavesMesh);
+
+        // Variant 2: Hanging Canopy Lianas (Drooping from opening downwards)
+        const lianaCount = MOBILE_RENDER_BUDGET ? 5 : 8;
+        for (let i = 0; i < lianaCount; i++) {
+            const a = envRand() * Math.PI * 2;
+            const startY = WELL_HEIGHT + 0.3;
+            const len = 8 + envRand() * 16;
+            const points = [];
+            for (let p = 0; p < 6; p++) {
+                const t = p / 5;
+                const droopIn = Math.sin(t * Math.PI * 0.7) * (0.18 + envRand() * 0.15);
+                const aa = a + Math.sin(t * 3.0 + i) * 0.05;
+                const rr = (WELL_RADIUS - 0.15) - droopIn;
                 points.push(new THREE.Vector3(Math.cos(aa) * rr, startY - t * len, Math.sin(aa) * rr));
             }
             const curve = new THREE.CatmullRomCurve3(points);
-            const root = new THREE.Mesh(new THREE.TubeGeometry(curve, MOBILE_RENDER_BUDGET ? 18 : 26, 0.07 + envRand() * 0.055, 6, false), rootMat);
+            const tube = new THREE.Mesh(new THREE.TubeGeometry(curve, 16, 0.038, 4, false), vineStemMat);
+            tube.receiveShadow = true;
+            vegGroup.add(tube);
+        }
+
+        // Variant 3: Twisted Tendrils (Short curly tendrils clinging in damp crevices)
+        const tendrilCount = MOBILE_RENDER_BUDGET ? 6 : 10;
+        for (let i = 0; i < tendrilCount; i++) {
+            const a = envRand() * Math.PI * 2;
+            const startY = 4 + envRand() * 28;
+            const points = [];
+            for (let p = 0; p < 5; p++) {
+                const t = p / 4;
+                const curl = Math.sin(t * Math.PI * 3.0) * 0.14;
+                const aa = a + curl * 0.04;
+                const rr = WELL_RADIUS - 0.10;
+                points.push(new THREE.Vector3(Math.cos(aa) * rr, startY + curl - t * 3.2, Math.sin(aa) * rr));
+            }
+            const curve = new THREE.CatmullRomCurve3(points);
+            const tube = new THREE.Mesh(new THREE.TubeGeometry(curve, 12, 0.022, 3, false), vineStemMat);
+            vegGroup.add(tube);
+        }
+
+        // 4. ANCIENT GNARLED ROOTS (Snaking down from well rim)
+        const rootMat = new THREE.MeshStandardMaterial({ color: 0x382417, roughness: 0.96, metalness: 0.0 });
+        const rootTipMat = new THREE.MeshStandardMaterial({ color: 0x24160f, roughness: 1.0 });
+        const rootCount = MOBILE_RENDER_BUDGET ? 5 : 8;
+        for (let i = 0; i < rootCount; i++) {
+            const a = envRand() * Math.PI * 2;
+            const startY = WELL_HEIGHT + 1.2 + envRand() * 2.0;
+            const len = 10 + envRand() * 18;
+            const points = [];
+            for (let p = 0; p < 7; p++) {
+                const t = p / 6;
+                const bend = Math.sin(t * Math.PI * 1.5 + i * 0.8) * (0.06 + t * 0.12);
+                const aa = a + bend;
+                const rr = WELL_RADIUS - 0.10 - Math.sin(t * Math.PI) * (0.04 + envRand() * 0.04);
+                points.push(new THREE.Vector3(Math.cos(aa) * rr, startY - t * len, Math.sin(aa) * rr));
+            }
+            const curve = new THREE.CatmullRomCurve3(points);
+            const radius = (0.08 + envRand() * 0.045);
+            const root = new THREE.Mesh(new THREE.TubeGeometry(curve, MOBILE_RENDER_BUDGET ? 16 : 24, radius, 5, false), rootMat);
             root.castShadow = true;
             root.receiveShadow = true;
-            envRoot.add(root);
+            vegGroup.add(root);
 
-            if (!MOBILE_RENDER_BUDGET || i % 2 === 0) {
-                const tip = new THREE.Mesh(new THREE.SphereGeometry(0.10, 6, 5), rootTipMat);
-                tip.position.copy(points[points.length - 1]);
-                tip.scale.set(0.7, 1.5, 0.7);
-                envRoot.add(tip);
-            }
+            const tip = new THREE.Mesh(new THREE.SphereGeometry(radius * 0.85, 6, 5), rootTipMat);
+            tip.position.copy(points[points.length - 1]);
+            vegGroup.add(tip);
         }
 
-        // Fern-like leaves clinging to damp cracks. Flat blades keep draw cost modest.
-        const fernMat = new THREE.MeshStandardMaterial({ color: 0x315d32, roughness: 0.93, side: THREE.DoubleSide });
-        const fernBladeGeo = new THREE.PlaneGeometry(0.16, 0.55, 1, 1);
-        const fernCount = MOBILE_RENDER_BUDGET ? 22 : 38;
-        for (let i = 0; i < fernCount; i++) {
+        // 5. FLOATING WATER LEAVES & LILY PADS (InstancedMesh on groundwater)
+        // Notched circular lily pad geometry (thetaLength = 1.84 * PI leaves natural V-notch)
+        const lilyPadGeo = new THREE.CircleGeometry(0.32, 14, 0, Math.PI * 1.84);
+        const lilyPadMat = new THREE.MeshStandardMaterial({
+            color: 0x386b2d,
+            roughness: 0.72,
+            metalness: 0.02,
+            side: THREE.DoubleSide
+        });
+        const lilyCount = MOBILE_RENDER_BUDGET ? 14 : 22;
+        const lilyPadMesh = new THREE.InstancedMesh(lilyPadGeo, lilyPadMat, lilyCount);
+
+        for (let i = 0; i < lilyCount; i++) {
             const a = envRand() * Math.PI * 2;
-            const y = 2 + envRand() * (WELL_HEIGHT - 5);
-            const group = new THREE.Group();
-            const blades = 3 + Math.floor(envRand() * 3);
-            for (let j = 0; j < blades; j++) {
-                const blade = new THREE.Mesh(fernBladeGeo, fernMat);
-                blade.position.set((j - (blades-1)/2) * 0.08, 0.1 + Math.abs(j-(blades-1)/2)*0.025, 0);
-                blade.rotation.z = (j - (blades-1)/2) * 0.28;
-                blade.rotation.x = -0.18 + envRand() * 0.22;
-                group.add(blade);
-            }
-            const rr = WELL_RADIUS - 0.10;
-            group.position.set(Math.cos(a) * rr, y, Math.sin(a) * rr);
-            group.rotation.y = -a - Math.PI/2;
-            group.rotation.z = (envRand() - .5) * 0.6;
-            group.scale.setScalar(0.65 + envRand() * 0.8);
-            envRoot.add(group);
+            const rr = 1.6 + Math.sqrt(envRand()) * (WELL_RADIUS - 2.4); // avoid coconut center
+            const lx = Math.cos(a) * rr;
+            const lz = Math.sin(a) * rr;
+            vegDummy.position.set(lx, 0.228, lz);
+            vegDummy.rotation.set(-Math.PI / 2, 0, envRand() * Math.PI * 2);
+            const sc = 0.55 + envRand() * 0.95;
+            vegDummy.scale.set(sc, sc, sc);
+            vegDummy.updateMatrix();
+            lilyPadMesh.setMatrixAt(i, vegDummy.matrix);
         }
+        lilyPadMesh.instanceMatrix.needsUpdate = true;
+        lilyPadMesh.receiveShadow = true;
+        vegGroup.add(lilyPadMesh);
 
         // A pale sky card above the opening keeps the top bright while the shaft remains dark.
         const skyDisc = new THREE.Mesh(
@@ -1995,6 +2156,30 @@
             });
         }
 
+        const toggleVeg = document.getElementById('toggle-veg');
+        let vegEnabled = true;
+        if (toggleVeg) {
+            toggleVeg.addEventListener('click', () => {
+                vegEnabled = !vegEnabled;
+                vegGroup.visible = vegEnabled;
+                toggleVeg.innerText = `พืชพรรณ: ${vegEnabled ? 'ON' : 'OFF'}`;
+                toggleVeg.className = vegEnabled
+                    ? 'bg-emerald-700 text-white py-1 rounded-lg text-[9px] font-bold text-center'
+                    : 'bg-rose-900 text-rose-200 py-1 rounded-lg text-[9px] font-bold text-center';
+            });
+        }
+
+        const btnMidCam = document.getElementById('btn-mid-cam');
+        if (btnMidCam) {
+            btnMidCam.addEventListener('click', () => {
+                inspectCamYOffset = 30.0;
+                camDistance = 5.6;
+                camPhi = 0.22;
+                triggerSpeech("ส่องดงเฟิร์น มอส และเถาวัลย์กลางบ่อน้ำ (30 เมตร)");
+                frogAudio.playCroak();
+            });
+        }
+
         // Height inspection view buttons
         document.querySelectorAll('.btn-cam-view').forEach(btn => {
             btn.addEventListener('click', () => {
@@ -2080,6 +2265,7 @@
             waterMesh.position.y = waterY;
             waterSheenMesh.position.y = waterY + 0.012;
             algae.position.y = waterY - 0.20;
+            lilyPadMesh.position.y = waterY - 0.20;
 
             // Ambient coconut ripple rings
             for (let i = 0; i < waterRipples.length; i++) {
