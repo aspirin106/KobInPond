@@ -1247,18 +1247,27 @@
             isCoconut: true
         });
 
-        const platformTypes = ['stone', 'wood', 'mushroom'];
         const totalSteps = 27;
         let currentAngle = 0.35;
 
-        // 3. Ancient Stone Corbel Wall Brackets (Anchoring platforms into the well cylinder wall)
-        const corbelGeo = new THREE.BoxGeometry(0.52, 0.42, 1.45);
-        const corbelMat = new THREE.MeshStandardMaterial({ color: 0x3d4b42, roughness: 0.94, flatShading: true });
-        const corbelStones = new THREE.InstancedMesh(corbelGeo, corbelMat, totalSteps);
-        corbelStones.castShadow = true;
-        corbelStones.receiveShadow = true;
-        stoneDetailGroup.add(corbelStones);
-        const corbelDummy = new THREE.Object3D();
+        // Crop one stone from the existing wall maps, rather than wrapping a whole wall onto each brick.
+        const brickColorMap = loadWellPBRTexture(WELL_PBR_BASECOLOR, true);
+        const brickNormalMap = loadWellPBRTexture(WELL_PBR_NORMAL);
+        const brickRoughnessMap = loadWellPBRTexture(WELL_PBR_ROUGHNESS);
+        [brickColorMap, brickNormalMap, brickRoughnessMap].forEach(tex => {
+            tex.repeat.set(0.22, 0.10);
+            tex.offset.set(0.42, 0.29);
+        });
+        const brickMat = new THREE.MeshStandardMaterial({
+            map: brickColorMap,
+            normalMap: brickNormalMap,
+            normalScale: new THREE.Vector2(0.55, 0.55),
+            roughnessMap: brickRoughnessMap,
+            color: 0xc5c0aa,
+            roughness: 0.92,
+            metalness: 0.0,
+            flatShading: true
+        });
 
         for (let i = 1; i <= totalSteps; i++) {
             const progress = i / totalSteps;
@@ -1268,60 +1277,41 @@
 
             const x = Math.cos(currentAngle) * dist;
             const z = Math.sin(currentAngle) * dist;
-
-            // Support corbel stone protruding from well wall towards platform bottom
             const normAngle = Math.atan2(z, x);
-            const midR = (dist + WELL_RADIUS) * 0.5;
-            corbelDummy.position.set(Math.cos(normAngle) * midR, y - 0.28, Math.sin(normAngle) * midR);
-            corbelDummy.rotation.y = -normAngle + Math.PI / 2;
-            corbelDummy.rotation.x = 0.10;
-            corbelDummy.scale.set(1.0, 0.9 + envRand() * 0.25, Math.max(0.65, (WELL_RADIUS - dist) * 0.92));
-            corbelDummy.updateMatrix();
-            corbelStones.setMatrixAt(i - 1, corbelDummy.matrix);
 
             const pGroup = new THREE.Group();
-            const rad = 1.35 - (progress * 0.22);
-            const type = platformTypes[i % platformTypes.length];
-
-            let pMesh;
-            if (type === 'mushroom') {
-                const capGeo = new THREE.CylinderGeometry(rad, rad * 0.8, 0.42, 14);
-                const capMat = new THREE.MeshStandardMaterial({ color: 0x8f4837, roughness: 0.72, flatShading: true });
-                pMesh = new THREE.Mesh(capGeo, capMat);
-            } else if (type === 'wood') {
-                const woodGeo = new THREE.BoxGeometry(rad * 2.1, 0.4, rad * 1.4);
-                const woodMat = new THREE.MeshStandardMaterial({ color: 0x533722, roughness: 0.92, flatShading: true });
-                pMesh = new THREE.Mesh(woodGeo, woodMat);
-                pMesh.rotation.y = -currentAngle;
-            } else {
-                const stoneGeo = new THREE.CylinderGeometry(rad * 1.05, rad * 1.25, 0.5, 12);
-                const stoneMat = new THREE.MeshStandardMaterial({ color: 0x435047, roughness: 0.91, flatShading: true });
-                pMesh = new THREE.Mesh(stoneGeo, stoneMat);
-            }
-
-            pMesh.castShadow = true;
-            pMesh.receiveShadow = true;
-            pGroup.add(pMesh);
-
-            // Tiny visual accents help each landing read as part of the damp well biome
-            if (i % 3 !== 0) {
-                const accentMat = new THREE.MeshStandardMaterial({ color: i % 2 ? 0x315c31 : 0x6b7b4a, roughness: 1.0, flatShading: true });
-                const accent = new THREE.Mesh(new THREE.IcosahedronGeometry(0.09 + envRand() * 0.09, 0), accentMat);
-                accent.position.set((envRand() - 0.5) * rad * 0.85, 0.30, (envRand() - 0.5) * rad * 0.55);
-                accent.scale.y = 0.55;
-                pGroup.add(accent);
-            }
-
             pGroup.position.set(x, y, z);
+            // Orient radially so the brick juts out straight from the circular wall towards well center
+            pGroup.rotation.y = -normAngle + Math.PI / 2;
+
+            const rad = 1.35 - (progress * 0.22);
+            const brickWidth = rad * 2.15;
+            const brickHeight = 0.85;
+            const frontDepth = rad * 1.65 / 2;
+            // A single solid brick reaches into the wall; no separate shelf or supporting beam.
+            const backDepth = WELL_RADIUS - dist + 0.45;
+            const brickDepth = frontDepth + backDepth;
+            const brickOffsetZ = (backDepth - frontDepth) / 2;
+            const brickOffsetY = (0.44 - brickHeight) / 2; // Preserve the existing jump landing height.
+
+            // 1. Main Protruding Stone Brick (แผ่นหิน/อิฐหลักที่ตัวกบเหยียบ)
+            const mainBrickGeo = new THREE.BoxGeometry(brickWidth, brickHeight, brickDepth);
+            const mainBrickMesh = new THREE.Mesh(mainBrickGeo, brickMat);
+            mainBrickMesh.position.set(0, brickOffsetY, brickOffsetZ);
+            mainBrickMesh.castShadow = true;
+            mainBrickMesh.receiveShadow = true;
+            pGroup.add(mainBrickMesh);
+
             scene.add(pGroup);
 
             platforms.push({
-                pos: new THREE.Vector3(x, y, z),
-                radius: rad + 0.38,
-                height: 0.5
+                pos: new THREE.Vector3(x + Math.cos(normAngle) * brickOffsetZ, y + brickOffsetY, z + Math.sin(normAngle) * brickOffsetZ),
+                angle: normAngle,
+                halfWidth: brickWidth / 2,
+                halfDepth: brickDepth / 2,
+                height: brickHeight
             });
         }
-        corbelStones.instanceMatrix.needsUpdate = true;
 
         // Final Exit Platform at the Top of the well
         platforms.push({
@@ -1717,7 +1707,7 @@
         }
 
         function triggerSpeech(msg, autoHideSec = 3.8) {
-            storyText.innerHTML = `"${msg}"`;
+            storyText.textContent = `"${msg}"`;
             storyBubbleContainer.classList.remove('bubble-hidden');
             storyBubble.classList.remove('bubble-pop');
             void storyBubble.offsetWidth;
@@ -1974,6 +1964,15 @@
             }
         }
 
+        function containsPlatformPoint(p, pos) {
+            const dx = pos.x - p.pos.x;
+            const dz = pos.z - p.pos.z;
+            if (p.angle === undefined) return Math.hypot(dx, dz) <= p.radius;
+            const localX = dx * Math.sin(p.angle) - dz * Math.cos(p.angle);
+            const localZ = dx * Math.cos(p.angle) + dz * Math.sin(p.angle);
+            return Math.abs(localX) <= p.halfWidth && Math.abs(localZ) <= p.halfDepth;
+        }
+
         function updatePhysics(dt) {
             // Turning Speed
             const turnSpeed = 3.4;
@@ -2039,10 +2038,9 @@
                 // Landing on platforms check
                 if (physics.vel.y < 0) {
                     for (let p of platforms) {
-                        const distToP = Math.hypot(physics.pos.x - p.pos.x, physics.pos.z - p.pos.z);
                         const platformTopY = p.pos.y + p.height / 2;
 
-                        if (distToP <= p.radius && Math.abs(physics.pos.y - platformTopY) < 0.62) {
+                        if (containsPlatformPoint(p, physics.pos) && Math.abs(physics.pos.y - platformTopY) < 0.62) {
                             physics.pos.y = platformTopY;
                             physics.vel.set(0, 0, 0);
                             physics.onGround = true;
@@ -2321,6 +2319,7 @@
                 btnSubmitScore.innerText = 'กำลังบันทึก...';
 
                 let savedToApi = false;
+                let apiErrorMessage = null;
                 try {
                     const resp = await fetch('/api/leaderboard', {
                         method: 'POST',
@@ -2343,10 +2342,15 @@
                                 renderLeaderboardRows(json.data, true);
                             }
                         }
+                    } else {
+                        const errJson = await resp.json().catch(() => ({}));
+                        apiErrorMessage = errJson.error || 'เซิร์ฟเวอร์ปฏิเสธการบันทึกคะแนน';
                     }
-                } catch(e) {}
+                } catch(e) {
+                    // Offline / Network failure
+                }
 
-                if (!savedToApi) {
+                if (!savedToApi && !apiErrorMessage) {
                     const currentList = getLocalLeaderboard();
                     currentList.push({
                         player_name: name,
@@ -2362,9 +2366,16 @@
                 }
 
                 if (lbSaveStatus) {
-                    lbSaveStatus.innerText = savedToApi 
-                        ? '✅ บันทึกลงฐานข้อมูล SQLite สำเร็จ!' 
-                        : '💾 บันทึกลงหน่วยความจำเครื่องสำเร็จ (โหมดออฟไลน์)';
+                    if (savedToApi) {
+                        lbSaveStatus.innerText = '✅ บันทึกลงฐานข้อมูล SQLite สำเร็จ!';
+                        lbSaveStatus.className = 'text-[9px] text-emerald-400 mt-1';
+                    } else if (apiErrorMessage) {
+                        lbSaveStatus.innerText = '⚠️ ' + apiErrorMessage;
+                        lbSaveStatus.className = 'text-[9px] text-rose-400 mt-1';
+                    } else {
+                        lbSaveStatus.innerText = '💾 บันทึกลงหน่วยความจำเครื่องสำเร็จ (โหมดออฟไลน์)';
+                        lbSaveStatus.className = 'text-[9px] text-amber-400 mt-1';
+                    }
                     lbSaveStatus.classList.remove('hidden');
                 }
 
