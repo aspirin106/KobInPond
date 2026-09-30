@@ -1,0 +1,180 @@
+{
+  "version": "6",
+  "dialect": "sqlite",
+  "id": "426a0c32-3e05-4d43-bac7-33817c912c95",
+  "prevId": "8800472a-a2f7-4a75-8708-31bd727bbf26",
+  "tables": {
+    "leaderboard": {
+      "name": "leaderboard",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "integer",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": true
+        },
+        "player_name": {
+          "name": "player_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "max_height": {
+          "name": "max_height",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "clear_time_seconds": {
+          "name": "clear_time_seconds",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "jump_count": {
+          "name": "jump_count",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
+        },
+        "is_escaped": {
+          "name": "is_escaped",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
+        },
+        "device_type": {
+          "name": "device_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'mobile'"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(CURRENT_TIMESTAMP)"
+        },
+        "run_id": {
+          "name": "run_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "verified": {
+          "name": "verified",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
+        }
+      },
+      "indexes": {
+        "idx_leaderboard_run": {
+          "name": "idx_leaderboard_run",
+          "columns": [
+            "run_id"
+          ],
+          "isUnique": true
+        },
+        "idx_leaderboard_height_time": {
+          "name": "idx_leaderboard_height_time",
+          "columns": [
+            "\"max_height\" desc",
+            "\"clear_time_seconds\" asc"
+          ],
+          "isUnique": false
+        },
+        "idx_leaderboard_escaped_speed": {
+          "name": "idx_leaderboard_escaped_speed",
+          "columns": [
+            "\"is_escaped\" desc",
+            "\"clear_time_seconds\" asc"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "runs": {
+      "name": "runs",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "started_at": {
+          "name": "started_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "idx_runs_started": {
+          "name": "idx_runs_started",
+          "columns": [
+            "started_at"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    }
+  },
+  "views": {},
+  "enums": {},
+  "_meta": {
+    "schemas": {},
+    "tables": {},
+    "columns": {}
+  },
+  "internal": {
+    "indexes": {
+      "idx_leaderboard_height_time": {
+        "columns": {
+          "\"max_height\" desc": {
+            "isExpression": true
+          },
+          "\"clear_time_seconds\" asc": {
+            "isExpression": true
+          }
+        }
+      },
+      "idx_leaderboard_escaped_speed": {
+        "columns": {
+          "\"is_escaped\" desc": {
+            "isExpression": true
+          },
+          "\"clear_time_seconds\" asc": {
+            "isExpression": true
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,10 +1,11 @@
-const CACHE_NAME = 'kob-in-kala-v5-finish-ring';
+const CACHE_NAME = 'kob-in-kala-v6-verified-scores';
 
 const STATIC_ASSETS = [
     './',
     './index.html',
     './style.css',
     './game.js',
+    './rules.js',
     './textures.js',
     './manifest.json',
     './images/icon-192.png',

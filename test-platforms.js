@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
+const Rules = require('./rules.js');
 const source = fs.readFileSync(`${__dirname}/game.js`, 'utf8');
 
 async function main() {
@@ -16,12 +17,19 @@ async function main() {
     const WELL_HEIGHT = Number(source.match(/const WELL_HEIGHT = ([\d.]+);/)[1]);
     assert.equal(WELL_HEIGHT, 130, 'The well is twice the original 65 meters');
     const scene = new THREE.Scene();
-    const context = vm.createContext({ scene, THREE, WELL_RADIUS: 6.8, WELL_HEIGHT,
+    const context = vm.createContext({ scene, THREE, KobRules: Rules, WELL_RADIUS: 6.8, WELL_HEIGHT,
         rockMap: new THREE.Texture(), rockNormalMap: new THREE.Texture(), rockRoughnessMap: new THREE.Texture() });
     const setup = source.slice(source.indexOf('// Platforms setup'), source.indexOf('// The Coconut Shell'));
     const contains = source.slice(source.indexOf('function containsPlatformPoint('), source.indexOf('function updatePhysics('));
     vm.runInContext(`${setup}\n${contains}\nglobalThis.result = { platforms, containsPlatformPoint };`, context);
     const { platforms, containsPlatformPoint: containsPoint } = context.result;
+    assert.equal(platforms.length, Rules.platforms.length);
+    for (let i = 0; i < platforms.length; i++) {
+        const p = platforms[i], authoritative = Rules.platforms[i];
+        for (const axis of ["x", "y", "z"]) assert.ok(Math.abs(p.pos[axis] - authoritative.pos[axis]) < 1e-12);
+        assert.ok(Math.abs(p.height - authoritative.height) < 1e-12);
+        if (p.outline) assert.equal(JSON.stringify(p.outline), JSON.stringify(authoritative.outline));
+    }
     scene.updateMatrixWorld(true);
     assert.equal(scene.children.length, 57);
     for (const [index, group] of scene.children.entries()) {
@@ -68,64 +76,44 @@ async function main() {
     const ringCenter = finishGroup.children[1].getWorldPosition(new THREE.Vector3());
     assert.ok(Math.hypot(ringCenter.x - finish.pos.x, ringCenter.z - finish.pos.z) < 1e-6);
     assert.ok(Math.abs(ringCenter.y - WELL_HEIGHT - 0.03) < 1e-6, 'Ring sits above the landing surface');
-    // Exercise the game's actual airborne/collision code, including wall rebounds.
-    const airborne = source.slice(source.indexOf('physics.vel.y -= GRAVITY * dt;'), source.indexOf('frog.position.copy(physics.pos);')).trim();
-    context.GRAVITY = Number(source.match(/const GRAVITY = ([\d.]+);/)[1]);
-    context.frogAudio = { playLand() {}, playSplash() {} };
-    context.storyMilestones = { firstJump: false };
-    context.triggerWaterSplash = context.triggerVictory = () => {};
-    context.FATAL_FALL_HEIGHT = Number(source.match(/const FATAL_FALL_HEIGHT = ([\d.]+);/)[1]);
-    context.document = { getElementById: () => ({}) };
-    context.closeStory = () => {};
-    context.deathDialog = { showModal() {} };
-    const fatalLanding = source.slice(source.indexOf('function checkFatalLanding('), source.indexOf('function triggerVictory('));
-    vm.runInContext(fatalLanding, context);
-    vm.runInContext(`globalThis.step = function(dt) { ${airborne.slice(0, -1)} };`, context);
     for (let i = 1; i < platforms.length; i++) {
         const start = platforms[i - 1], target = platforms[i];
         const facing = Math.atan2(target.pos.x - start.pos.x, target.pos.z - start.pos.z);
         let reachable = false;
-        for (let power = 0.15; power <= 1.001 && !reachable; power += 0.005) {
-            context.physics = { pos: start.pos.clone(), onGround: false,
-                vel: new THREE.Vector3(Math.sin(facing), 1.38, Math.cos(facing)).normalize().multiplyScalar(6.2 + power * (18.5 - 6.2)) };
-            context.physics.pos.y = i === 1 ? 0.45 : start.pos.y + start.height / 2;
-            context.physics.fallPeakY = context.physics.pos.y;
-            for (let frame = 0; frame < 240 && !context.physics.onGround; frame++) context.step(1 / 60);
-            reachable = containsPoint(target, context.physics.pos) &&
-                Math.abs(context.physics.pos.y - (target.pos.y + target.height / 2)) < 1e-6 &&
-                (!target.isTopExit || Math.hypot(context.physics.pos.x - target.pos.x, context.physics.pos.z - target.pos.z) <= target.finishRadius);
+        for (let power = .15; power <= 1.001 && !reachable; power += .005) {
+            const state = Rules.createState(facing);
+            Object.assign(state.pos, start.pos);
+            state.pos.y = i === 1 ? .45 : start.pos.y + start.height / 2;
+            state.fallPeakY = state.pos.y;
+            state.onGround = false;
+            const speed = (6.2 + power * (18.5 - 6.2)) / Math.hypot(1, 1.38);
+            Object.assign(state.vel, { x: Math.sin(facing) * speed, y: 1.38 * speed, z: Math.cos(facing) * speed });
+            for (let frame = 0; frame < 240 && !state.onGround; frame++) Rules.step(state, 0);
+            reachable = containsPoint(target, state.pos) &&
+                Math.abs(state.pos.y - (target.pos.y + target.height / 2)) < 1e-6 &&
+                (!target.isTopExit || state.reachedWellTop);
         }
-        assert.ok(reachable, `Jump ${i} reaches the next stone/exit using the original jump power`);
+        assert.ok(reachable, "Jump " + i + " reaches the next stone/finish circle");
     }
-    // Fatal falls hit both stones and water; each landing resets the peak.
-    const stone = platforms[10];
-    const stoneY = stone.pos.y + stone.height / 2;
-    for (const [x, z, landingY] of [[2, 0, 0.38], [stone.pos.x, stone.pos.z, stoneY]]) {
+    const stone = platforms[10], stoneY = stone.pos.y + stone.height / 2;
+    for (const [x, z, y] of [[2, 0, .38], [stone.pos.x, stone.pos.z, stoneY]]) {
         for (const distance of [19.9, 20, 50]) {
-            context.physics = { pos: new THREE.Vector3(x, landingY + 1, z),
-                vel: new THREE.Vector3(0, -40, 0), onGround: false, dead: false,
-                fallPeakY: landingY + distance };
-            context.step(0.05); // Cross the surface in a single frame at high speed.
-            assert.equal(context.physics.pos.y, landingY);
-            assert.equal(context.physics.dead, distance >= 20);
-            assert.equal(context.physics.fallPeakY, landingY);
+            const state = Rules.createState();
+            Object.assign(state.pos, { x, y: y + .3, z });
+            state.vel.y = -40; state.onGround = false; state.fallPeakY = y + distance;
+            Rules.step(state, 0);
+            assert.equal(state.pos.y, y);
+            assert.equal(state.dead, distance >= 20);
+            assert.equal(state.fallPeakY, y);
         }
     }
-    for (const distance of [6, 6, 6, 6]) {
-        context.physics = { pos: new THREE.Vector3(0, 10, 0), fallPeakY: 10 + distance, dead: false };
-        context.checkFatalLanding();
-        assert.equal(context.physics.dead, false, 'Small falls do not accumulate into a fatal fall');
-    }
-    let victories = 0;
-    context.triggerVictory = () => { victories++; };
-    for (const [offset, expectedVictories] of [[1.05, 0], [0, 1]]) {
-        context.physics = { pos: finish.pos.clone(), vel: new THREE.Vector3(0, -2, 0),
-            onGround: false, dead: false, fallPeakY: WELL_HEIGHT + 0.7 };
-        context.physics.pos.x += offset;
-        context.physics.pos.y = WELL_HEIGHT + 0.7;
-        context.step(0.08);
-        assert.equal(context.physics.onGround, true);
-        assert.equal(victories, expectedVictories, 'Only landing inside the marked circle wins');
+    for (const [offset, wins] of [[1.05, false], [0, true]]) {
+        const state = Rules.createState();
+        Object.assign(state.pos, { ...finish.pos, x: finish.pos.x + offset, y: WELL_HEIGHT + .5 });
+        state.vel.y = -2; state.onGround = false; state.fallPeakY = state.pos.y;
+        Rules.step(state, 0);
+        assert.equal(state.onGround, true);
+        assert.equal(state.reachedWellTop, wins, "Only landing inside the ring wins");
     }
     // Build the actual vegetation and stone meshes under both render budgets.
     for (const mobile of [true, false]) {

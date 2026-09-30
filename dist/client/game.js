@@ -1702,6 +1702,10 @@
             fallPeakY: 0.45
         };
 
+        Object.assign(physics, { previousButtons: 0, started: false, elapsedTicks: 0, maxHeight: .45 });
+        let jumpHeld = false, jumpReleasePending = false, runSessionPromise = null, replayInitialAngle = 0;
+        let replaySegments = [], replayOverflow = false;
+
         // Run Timer & Score Tracking
         let gameStartTime = null;
         let runElapsedTime = 0;
@@ -1717,7 +1721,6 @@
         const GRAVITY = 26.0;
         const MAX_JUMP_FORCE = 18.5;
         const MIN_JUMP_FORCE = 6.2;
-        const FATAL_FALL_HEIGHT = 20;
 
         const storyMilestones = {
             firstJump: false,
@@ -1943,51 +1946,38 @@
         // Jump Button Event Handlers
         const btnJump = document.getElementById('btn-jump-action');
         btnJump.addEventListener('mousedown', (e) => { e.preventDefault(); startChargingJump(); });
-        window.addEventListener('mouseup', () => { if (physics.charging) releaseChargingJump(); });
+        window.addEventListener('mouseup', () => { if (jumpHeld) releaseChargingJump(); });
         btnJump.addEventListener('touchstart', (e) => { e.preventDefault(); startChargingJump(); }, { passive: false });
         btnJump.addEventListener('touchend', (e) => { e.preventDefault(); releaseChargingJump(); });
 
         function startChargingJump() {
-            if (!physics.onGround || physics.charging || physics.reachedWellTop || physics.dead) return;
+            if (!physics.onGround || jumpHeld || physics.reachedWellTop || physics.dead) return;
             if (!gameStartTime) {
                 gameStartTime = performance.now();
                 isRunActive = true;
+                replayInitialAngle = physics.facingAngle % (Math.PI * 2);
+                physics.facingAngle = replayInitialAngle;
+                runSessionPromise = fetch("/api/runs", { method: "POST" }).then(async response => {
+                    if (!response.ok) return { error: "เริ่มรอบออนไลน์ไม่สำเร็จ กรุณาเริ่มใหม่" };
+                    return response.json();
+                }).catch(() => null);
             }
-            physics.charging = true;
-            physics.chargePower = 0.05;
-            chargeContainer.classList.remove('opacity-30');
-            chargeContainer.classList.add('opacity-100');
+            jumpHeld = true;
+            chargeContainer.classList.remove("opacity-30");
+            chargeContainer.classList.add("opacity-100");
             trajSpheres.forEach(dot => { dot.visible = true; });
             if (navigator.vibrate) navigator.vibrate(25);
         }
 
         function releaseChargingJump() {
-            if (!physics.charging) return;
-            physics.charging = false;
-            chargeContainer.classList.remove('opacity-100');
-            chargeContainer.classList.add('opacity-30');
+            // Keep a quick tap for one physics tick, as the old immediate release did.
+            if (jumpHeld && !(physics.previousButtons & 4)) jumpReleasePending = true;
+            else jumpHeld = false;
+            chargeContainer.classList.remove("opacity-100");
+            chargeContainer.classList.add("opacity-30");
             trajSpheres.forEach(dot => { dot.visible = false; });
-
-            const finalPower = Math.max(0.15, physics.chargePower);
-            const totalSpeed = MIN_JUMP_FORCE + finalPower * (MAX_JUMP_FORCE - MIN_JUMP_FORCE);
-
-            const jumpDir = new THREE.Vector3(
-                Math.sin(physics.facingAngle),
-                1.38,
-                Math.cos(physics.facingAngle)
-            ).normalize();
-
-            physics.vel.copy(jumpDir.multiplyScalar(totalSpeed));
-            physics.onGround = false;
-            physics.fallPeakY = physics.pos.y;
-            physics.jumpCount++;
-
-            frogAudio.playJump(finalPower);
-            if (navigator.vibrate) navigator.vibrate(40);
-
-            physics.chargePower = 0;
-            chargeBar.style.width = '0%';
-            chargePercent.innerText = '0%';
+            chargeBar.style.width = "0%";
+            chargePercent.innerText = "0%";
         }
 
         function updateTrajectoryLine() {
@@ -2008,34 +1998,47 @@
             }
         }
 
-        function containsPlatformPoint(p, pos) {
-            const dx = pos.x - p.pos.x;
-            const dz = pos.z - p.pos.z;
-            if (p.angle === undefined) return Math.hypot(dx, dz) <= p.radius;
-            const localX = dx * Math.sin(p.angle) - dz * Math.cos(p.angle);
-            const localZ = dx * Math.cos(p.angle) + dz * Math.sin(p.angle);
-            let inside = false;
-            for (let i = 0, j = p.outline.length - 1; i < p.outline.length; j = i++) {
-                const [ax, az] = p.outline[i];
-                const [bx, bz] = p.outline[j];
-                if ((az > localZ) !== (bz > localZ) &&
-                    localX < (bx - ax) * (localZ - az) / (bz - az) + ax) inside = !inside;
-            }
-            return inside;
-        }
+        function containsPlatformPoint(p, pos) { return KobRules.contains(p, pos); }
 
-        function updatePhysics(dt) {
+        function updatePhysics() {
             if (physics.dead) return;
-            // Turning Speed
-            const turnSpeed = 3.4;
-            if (keys['KeyA'] || keys['ArrowLeft'] || steerDirection === 1) physics.facingAngle += turnSpeed * dt;
-            if (keys['KeyD'] || keys['ArrowRight'] || steerDirection === -1) physics.facingAngle -= turnSpeed * dt;
+            const buttons = ((keys["KeyA"] || keys["ArrowLeft"] || steerDirection === 1) ? 1 : 0) |
+                ((keys["KeyD"] || keys["ArrowRight"] || steerDirection === -1) ? 2 : 0) | (jumpHeld ? 4 : 0);
+            if (isRunActive && !physics.reachedWellTop && !replayOverflow) {
+                const last = replaySegments.at(-1);
+                if (last && last[1] === buttons) last[0]++;
+                else replaySegments.push([1, buttons]);
+                replayOverflow = replaySegments.length > KobRules.MAX_SEGMENTS || physics.elapsedTicks >= KobRules.MAX_TICKS;
+            }
+            const event = KobRules.step(physics, buttons);
+            if (jumpReleasePending) {
+                jumpHeld = false;
+                jumpReleasePending = false;
+            }
+            runMaxAltitude = physics.maxHeight;
+            runElapsedTime = physics.elapsedTicks * KobRules.DT;
+            if (event.jump) {
+                frogAudio.playJump(event.jump);
+                if (navigator.vibrate) navigator.vibrate(40);
+            }
+            if (event.land) frogAudio.playLand();
+            if (event.splash) {
+                frogAudio.playSplash();
+                triggerWaterSplash(physics.pos.x, physics.pos.z, event.splash);
+            }
+            if (event.death) {
+                isRunActive = false;
+                releaseChargingJump();
+                closeStory();
+                document.getElementById("death-detail").textContent = "ตกลงมา " + event.death.toFixed(1) + " เมตร น้องกบตายแล้ว";
+                deathDialog.showModal();
+            }
+            if (event.victory) triggerVictory();
 
             // Voxel Frog Crouched Animation Controller
             const nowMs = performance.now();
 
             if (physics.charging) {
-                physics.chargePower = Math.min(1.0, physics.chargePower + dt * 1.18);
                 const percent = Math.floor(physics.chargePower * 100);
                 chargeBar.style.width = `${percent}%`;
                 chargePercent.innerText = `${percent}%`;
@@ -2071,59 +2074,6 @@
                 hindLegL.rotation.x = 0.65;
                 hindLegR.rotation.x = 0.65;
 
-                physics.vel.y -= GRAVITY * dt;
-                physics.fallPeakY = Math.max(physics.fallPeakY, physics.pos.y);
-                const previousY = physics.pos.y;
-                physics.pos.addScaledVector(physics.vel, dt);
-
-                // Cylinder wall boundary collision
-                const horizDist = Math.sqrt(physics.pos.x * physics.pos.x + physics.pos.z * physics.pos.z);
-                const maxRadius = WELL_RADIUS - 0.58;
-
-                if (horizDist > maxRadius) {
-                    const norm = new THREE.Vector2(physics.pos.x, physics.pos.z).normalize();
-                    physics.pos.x = norm.x * maxRadius;
-                    physics.pos.z = norm.y * maxRadius;
-                    physics.vel.x = -physics.vel.x * 0.35;
-                    physics.vel.z = -physics.vel.z * 0.35;
-                    frogAudio.playLand();
-                }
-
-                // Landing on platforms check
-                if (physics.vel.y < 0) {
-                    for (let p of platforms) {
-                        const platformTopY = p.pos.y + p.height / 2;
-
-                        if (containsPlatformPoint(p, physics.pos) && (Math.abs(physics.pos.y - platformTopY) < 0.62 || (previousY >= platformTopY && physics.pos.y <= platformTopY))) {
-                            physics.pos.y = platformTopY;
-                            physics.vel.set(0, 0, 0);
-                            physics.onGround = true;
-                            frogAudio.playLand();
-                            checkFatalLanding();
-
-                            if (p.isTopExit && !physics.reachedWellTop && !physics.dead &&
-                                Math.hypot(physics.pos.x - p.pos.x, physics.pos.z - p.pos.z) <= p.finishRadius) {
-                                triggerVictory();
-                            }
-                            break;
-                        }
-                    }
-                }
-
-                // Bottom well water landing
-                if (physics.pos.y <= 0.38) {
-                    const fallSpeed = Math.abs(physics.vel.y);
-                    physics.pos.y = 0.38;
-                    physics.vel.set(0, 0, 0);
-                    physics.onGround = true;
-                    frogAudio.playSplash();
-                    triggerWaterSplash(physics.pos.x, physics.pos.z, Math.max(1.0, fallSpeed * 0.14));
-                    checkFatalLanding();
-
-                    if (storyMilestones.firstJump && !physics.dead) {
-                        triggerSpeech("จ๋อม! ตกน้ำก้นบ่อจนได้ ดีนะที่ว่ายน้ำเป็น รีบปีนขึ้นกะลาเร็ว!");
-                    }
-                }
             }
 
             frog.position.copy(physics.pos);
@@ -2136,9 +2086,7 @@
             const altPct = Math.min(100, (physics.pos.y / WELL_HEIGHT) * 100);
             altitudeProgress.style.width = `${altPct}%`;
 
-            runMaxAltitude = Math.max(runMaxAltitude, physics.pos.y);
             if (isRunActive && gameStartTime && !physics.reachedWellTop) {
-                runElapsedTime = (performance.now() - gameStartTime) / 1000;
                 const timerEl = document.getElementById('timer-text');
                 if (timerEl) timerEl.innerText = formatGameTime(runElapsedTime);
             }
@@ -2177,18 +2125,6 @@
         const iconSoundOn = document.getElementById('icon-sound-on');
         const iconSoundOff = document.getElementById('icon-sound-off');
 
-        function checkFatalLanding() {
-            const fallHeight = physics.fallPeakY - physics.pos.y;
-            physics.fallPeakY = physics.pos.y;
-            if (fallHeight < FATAL_FALL_HEIGHT || physics.dead) return;
-            physics.dead = true;
-            physics.charging = false;
-            isRunActive = false;
-            closeStory();
-            document.getElementById('death-detail').textContent = `ตกลงมา ${fallHeight.toFixed(1)} เมตร น้องกบตายแล้ว`;
-            deathDialog.showModal();
-        }
-
         function triggerVictory() {
             physics.reachedWellTop = true;
             isRunActive = false;
@@ -2218,6 +2154,12 @@
             chargeContainer.classList.remove('opacity-100');
             chargeContainer.classList.add('opacity-30');
             trajSpheres.forEach(dot => { dot.visible = false; });
+            Object.assign(physics, { previousButtons: 0, started: false, elapsedTicks: 0, maxHeight: .45 });
+            jumpHeld = false;
+            jumpReleasePending = false;
+            replaySegments = [];
+            replayOverflow = false;
+            runSessionPromise = null;
             gameStartTime = null;
             runElapsedTime = 0;
             runMaxAltitude = 0;
@@ -2249,7 +2191,7 @@
         const btnRefreshLb = document.getElementById('btn-refresh-lb');
         const btnVictorySave = document.getElementById('btn-victory-save');
 
-        const LEADERBOARD_CACHE_KEY = 'kob_leaderboard_cache_v2';
+        const LEADERBOARD_CACHE_KEY = 'kob_leaderboard_cache_v3';
 
         function getLocalLeaderboard() {
             try {
@@ -2393,15 +2335,25 @@
                 let savedToApi = false;
                 let apiErrorMessage = null;
                 try {
+                    const proof = { version: 1, initial_angle: replayInitialAngle,
+                        segments: replaySegments.map(segment => [...segment]) };
+                    if (replayOverflow || !physics.jumpCount) {
+                        apiErrorMessage = "กรุณาเริ่มรอบใหม่และกระโดดก่อนบันทึก (รอบละไม่เกิน 30 นาที)";
+                        throw Error(apiErrorMessage);
+                    }
+                    const session = await runSessionPromise;
+                    if (!session) throw Error("Offline run");
+                    if (session.error) {
+                        apiErrorMessage = session.error;
+                        throw Error(apiErrorMessage);
+                    }
                     const resp = await fetch('/api/leaderboard', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
                             player_name: name,
-                            max_height: height,
-                            clear_time_seconds: clearTime,
-                            jump_count: jumpCount,
-                            is_escaped: isEscaped,
+                            run_id: session.run_id,
+                            replay: proof,
                             device_type: deviceType
                         })
                     });
@@ -2857,13 +2809,18 @@
         });
 
         let lastTime = performance.now();
+        let physicsAccumulator = 0;
 
         function animate(now) {
             requestAnimationFrame(animate);
             const dt = Math.min((now - lastTime) / 1000, 0.08);
             lastTime = now;
 
-            updatePhysics(dt);
+            physicsAccumulator += dt;
+            while (physicsAccumulator >= KobRules.DT) {
+                updatePhysics();
+                physicsAccumulator -= KobRules.DT;
+            }
             updateCamera();
 
             // STEP 3: 2-Layer Normal Scrolling
