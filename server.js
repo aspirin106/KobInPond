@@ -93,19 +93,23 @@ function validateScore(data) {
         return { valid: false, error: 'กรุณากรอกชื่อผู้เล่น (1-30 ตัวอักษร)' };
     }
 
-    const maxHeight = parseFloat(data.max_height);
-    const clearTime = parseFloat(data.clear_time_seconds);
-    const jumpCount = parseInt(data.jump_count, 10);
-    const isEscaped = data.is_escaped ? 1 : 0;
-    const deviceType = (typeof data.device_type === 'string' ? data.device_type : 'mobile').slice(0, 20);
+    const maxHeight = data.max_height;
+    const clearTime = data.clear_time_seconds;
+    const jumpCount = data.jump_count;
+    if (![0, 1, false, true].includes(data.is_escaped)) {
+        return { valid: false, error: 'สถานะการพ้นบ่อไม่ถูกต้อง' };
+    }
+    const isEscaped = data.is_escaped === true || data.is_escaped === 1 ? 1 : 0;
+    const deviceType = typeof data.device_type === 'string' && ['mobile', 'desktop'].includes(data.device_type)
+        ? data.device_type : 'mobile';
 
-    if (isNaN(maxHeight) || maxHeight < 0 || maxHeight > 65.0) {
+    if (!Number.isFinite(maxHeight) || maxHeight < 0 || maxHeight > 65.0) {
         return { valid: false, error: 'ระดับความสูงไม่ถูกต้อง (ต้องอยู่ระหว่าง 0.0 ถึง 65.0m)' };
     }
-    if (isNaN(clearTime) || clearTime < 0 || clearTime > 86400) {
+    if (!Number.isFinite(clearTime) || clearTime < 0 || clearTime > 86400) {
         return { valid: false, error: 'เวลาที่ใช้ไม่ถูกต้อง' };
     }
-    if (isNaN(jumpCount) || jumpCount < 0 || jumpCount > 100000) {
+    if (!Number.isInteger(jumpCount) || jumpCount < 0 || jumpCount > 100000) {
         return { valid: false, error: 'จำนวนการกระโดดไม่ถูกต้อง' };
     }
 
@@ -202,7 +206,8 @@ const server = http.createServer((req, res) => {
         }
 
         // Rate Limiting by IP
-        const clientIp = req.headers['x-forwarded-for']?.split(',')[0].trim() || req.socket.remoteAddress || 'unknown';
+        // X-Forwarded-For is client-controlled unless a trusted proxy overwrites it.
+        const clientIp = req.socket.remoteAddress || 'unknown';
         if (checkRateLimit(clientIp)) {
             res.writeHead(429, {
                 'Content-Type': 'application/json',

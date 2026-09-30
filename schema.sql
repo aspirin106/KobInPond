@@ -23,15 +23,7 @@ CREATE INDEX IF NOT EXISTS idx_leaderboard_height_time
 CREATE INDEX IF NOT EXISTS idx_leaderboard_escaped_speed 
     ON leaderboard (is_escaped DESC, clear_time_seconds ASC);
 
--- 3. ข้อมูลตัวอย่างเริ่มต้น (Initial Seed Data)
-INSERT INTO leaderboard (player_name, max_height, clear_time_seconds, jump_count, is_escaped, device_type) VALUES
-('นายน้องกบยอดนักโดด', 65.00, 48.20, 14, 1, 'mobile'),
-('เขียดน้อยติดสปีด ⚡', 65.00, 56.40, 16, 1, 'desktop'),
-('กบซ่าท้าปากบ่อ 🐸', 58.40, 72.10, 22, 0, 'mobile'),
-('อึ่งอ่างพลังสปริง', 42.10, 51.30, 15, 0, 'mobile'),
-('เจ้าชายกบในกะลา', 35.80, 39.50, 12, 0, 'desktop'),
-('คางคกสายชิลล์', 24.60, 28.70, 8, 0, 'mobile'),
-('น้องกบมือใหม่หัดโดด', 12.30, 15.20, 4, 0, 'mobile');
+-- Start with an empty leaderboard; scores are submitted by players.
 
 -- 4. คำสั่ง SQL ที่ใช้บ่อยในเกม (Useful Game Queries)
 
