@@ -146,6 +146,8 @@
         }
 
         const frogAudio = new ProceduralAudio();
+        const WELL_RADIUS = 6.8;
+        const WELL_HEIGHT = 130.0;
 
         const container = document.getElementById('canvas-container');
         const scene = new THREE.Scene();
@@ -189,12 +191,12 @@
 
         // 1. UPPER ZONE: Warm direct sunlight from well opening grazing down the PBR stone
         const sunLight = new THREE.DirectionalLight(0xfff3d6, 3.6);
-        sunLight.position.set(6.5, 78, 3.8);
+        sunLight.position.set(6.5, WELL_HEIGHT + 13, 3.8);
         sunLight.castShadow = true;
         sunLight.shadow.mapSize.width = MOBILE_RENDER_BUDGET ? 768 : 1024;
         sunLight.shadow.mapSize.height = MOBILE_RENDER_BUDGET ? 768 : 1024;
         sunLight.shadow.camera.near = 0.5;
-        sunLight.shadow.camera.far = 115;
+        sunLight.shadow.camera.far = WELL_HEIGHT + 50;
         const d = 11;
         sunLight.shadow.camera.left = -d;
         sunLight.shadow.camera.right = d;
@@ -204,19 +206,19 @@
         scene.add(sunLight);
 
         // Warm shaft beam from opening rim
-        const openingLight = new THREE.SpotLight(0xffe8b5, 2.8, 95, 0.44, 0.85, 1.3);
-        openingLight.position.set(3.0, 72, 1.2);
+        const openingLight = new THREE.SpotLight(0xffe8b5, 2.8, WELL_HEIGHT + 30, 0.44, 0.85, 1.3);
+        openingLight.position.set(3.0, WELL_HEIGHT + 7, 1.2);
         openingLight.target.position.set(0, 10, 0);
         scene.add(openingLight);
         scene.add(openingLight.target);
 
         // 2. MIDDLE ZONE: Darker mossy green diffuse ambiance
-        const midBounce = new THREE.PointLight(0x2d5c34, 0.45, 32);
-        midBounce.position.set(2.2, 34, -1.8);
+        const midBounce = new THREE.PointLight(0x2d5c34, 0.45, WELL_HEIGHT * 0.5);
+        midBounce.position.set(2.2, WELL_HEIGHT * 0.52, -1.8);
         scene.add(midBounce);
 
-        const midBounce2 = new THREE.PointLight(0x1f4a28, 0.35, 28);
-        midBounce2.position.set(-2.0, 22, 1.6);
+        const midBounce2 = new THREE.PointLight(0x1f4a28, 0.35, WELL_HEIGHT * 0.43);
+        midBounce2.position.set(-2.0, WELL_HEIGHT * 0.34, 1.6);
         scene.add(midBounce2);
 
         // 3. BOTTOM ZONE: Cool, damp groundwater reflection
@@ -389,9 +391,6 @@
             return new THREE.CanvasTexture(canvas);
         }
 
-        const WELL_RADIUS = 6.8;
-        const WELL_HEIGHT = 65.0;
-
         /*
            Camera Cutaway Through Wall:
            By using standard CylinderGeometry with THREE.BackSide:
@@ -419,11 +418,11 @@
 
         // PBR Wall Scale Presets:
         // Whole integer repeat.x ensures 100% seamless 360° wrapping on CylinderGeometry.
-        // Ratio repeat.y / repeat.x ~= 65.0 / (2 * Math.PI * 6.8) ~= 1.521 for metric 1:1 square tiles.
+        // Double vertical repeats with the well height to preserve stone scale.
         const WALL_PBR_PRESETS = [
-            { name: '6x9 (Chunky / มาตรฐาน)', rx: 6, ry: 9, desc: 'หินก้อนโต สัดส่วน 1:1 ไร้รอยต่อ 360°' },
-            { name: '8x12 (Refined / ก้อนถี่)', rx: 8, ry: 12, desc: 'หินก้อนย่อย รายละเอียดถี่ สมจริง' },
-            { name: '3.2x10.5 (Old Test / บั๊ก Seam)', rx: 3.2, ry: 10.5, desc: 'แบบทดสอบเดิม (หินยืดแบน มีรอยต่อไม่เนียน)' }
+            { name: '6x18 (Chunky / มาตรฐาน)', rx: 6, ry: 18, desc: 'หินก้อนโต สัดส่วน 1:1 ไร้รอยต่อ 360°' },
+            { name: '8x24 (Refined / ก้อนถี่)', rx: 8, ry: 24, desc: 'หินก้อนย่อย รายละเอียดถี่ สมจริง' },
+            { name: '3.2x21 (Old Test / บั๊ก Seam)', rx: 3.2, ry: 21, desc: 'แบบทดสอบเดิม (หินยืดแบน มีรอยต่อไม่เนียน)' }
         ];
         let currentWallPresetIdx = 0;
 
@@ -436,6 +435,25 @@
             if (isColor) tex.encoding = THREE.sRGBEncoding;
             return tex;
         }
+
+        function loadGameTexture(name, isColor = true) {
+            const tex = loadWellPBRTexture(`images/generated/${name}.webp`, isColor);
+            tex.repeat.set(1, 1);
+            return tex;
+        }
+
+        const leafMap = loadGameTexture('leaf-albedo');
+        const rockMap = loadGameTexture('rock-albedo');
+        const rockNormalMap = loadGameTexture('rock-normal', false);
+        const rockRoughnessMap = loadGameTexture('rock-roughness', false);
+        const vineMap = loadGameTexture('vine-albedo');
+        const vineNormalMap = loadGameTexture('vine-normal', false);
+        const vineRoughnessMap = loadGameTexture('vine-roughness', false);
+        // TubeGeometry's U follows the length. Rotate vertical bark ridges into that direction.
+        [vineMap, vineNormalMap, vineRoughnessMap].forEach(tex => {
+            tex.rotation = Math.PI / 2;
+            tex.repeat.set(1, 8);
+        });
 
         const wellBaseColorMap = loadWellPBRTexture(WELL_PBR_BASECOLOR, true);
         const wellNormalMap = loadWellPBRTexture(WELL_PBR_NORMAL, false);
@@ -492,8 +510,8 @@
         const mossGeo = new THREE.DodecahedronGeometry(0.22, 1);
         mossGeo.scale(1.4, 0.45, 0.55); // natural flattened cushion
 
-        const mossMatDark = new THREE.MeshStandardMaterial({ color: 0x1f4e24, roughness: 1.0, flatShading: true });
-        const mossMatLight = new THREE.MeshStandardMaterial({ color: 0x3d752e, roughness: 0.95, flatShading: true });
+        const mossMatDark = new THREE.MeshStandardMaterial({ map: rockMap, normalMap: rockNormalMap, color: 0x46683c, roughness: 1.0 });
+        const mossMatLight = new THREE.MeshStandardMaterial({ map: rockMap, normalMap: rockNormalMap, color: 0x6c8a4c, roughness: 0.95 });
 
         const mossCount = MOBILE_RENDER_BUDGET ? 36 : 64;
         const mossMeshA = new THREE.InstancedMesh(mossGeo, mossMatDark, mossCount);
@@ -533,11 +551,12 @@
         // 2. FERN VARIANTS (2 Variants via InstancedMesh)
         // Variant 1: Wall-Crevice Fan Fern (Spreading rosette of fronds)
         // Variant 2: Drooping Shelf Fern (Arching cascade over ledges)
-        const fernMatA = new THREE.MeshStandardMaterial({ color: 0x245829, roughness: 0.88, side: THREE.DoubleSide });
-        const fernMatB = new THREE.MeshStandardMaterial({ color: 0x3b7736, roughness: 0.90, side: THREE.DoubleSide });
+        const fernMatA = new THREE.MeshStandardMaterial({ map: leafMap, color: 0xe0ebce, alphaTest: 0.45, roughness: 0.88, side: THREE.DoubleSide });
+        const fernMatB = fernMatA.clone();
+        fernMatB.color.setHex(0xc6d9ab);
 
         // Fan fern geometry: curved blades
-        const fernFanGeo = new THREE.PlaneGeometry(0.18, 0.68, 1, 2);
+        const fernFanGeo = new THREE.PlaneGeometry(0.44, 0.68, 2, 4);
         const posFan = fernFanGeo.attributes.position;
         for (let i = 0; i < posFan.count; i++) {
             const y = posFan.getY(i);
@@ -571,7 +590,7 @@
         vegGroup.add(fernFanMesh);
 
         // Drooping fern geometry (arching downwards over ledges)
-        const fernDroopGeo = new THREE.PlaneGeometry(0.14, 0.82, 1, 2);
+        const fernDroopGeo = new THREE.PlaneGeometry(0.42, 0.72, 2, 4);
         const posDroop = fernDroopGeo.attributes.position;
         for (let i = 0; i < posDroop.count; i++) {
             const y = posDroop.getY(i);
@@ -605,19 +624,24 @@
         vegGroup.add(fernDroopMesh);
 
         // 3. VINES (3 Variants: Creeping Ivy, Hanging Lianas, Twisted Tendrils)
-        const vineStemMat = new THREE.MeshStandardMaterial({ color: 0x224823, roughness: 0.94 });
-        const vineLeafMat = new THREE.MeshStandardMaterial({ color: 0x32692c, roughness: 0.86, side: THREE.DoubleSide });
-        const vineLeafGeo = new THREE.CircleGeometry(0.13, 5);
+        const vineStemMat = new THREE.MeshStandardMaterial({ map: vineMap, normalMap: vineNormalMap, normalScale: new THREE.Vector2(0.5, 0.5), roughnessMap: vineRoughnessMap, roughness: 0.94 });
+        const vineLeafMat = fernMatA;
+        const vineLeafGeo = new THREE.PlaneGeometry(0.36, 0.43, 2, 3);
+        const leafPos = vineLeafGeo.attributes.position;
+        for (let i = 0; i < leafPos.count; i++) {
+            leafPos.setZ(i, 0.04 * Math.sin((leafPos.getY(i) / 0.43 + 0.5) * Math.PI));
+        }
+        vineLeafGeo.computeVertexNormals();
 
         // Pre-count leaves for Ivy InstancedMesh
         const ivyCount = MOBILE_RENDER_BUDGET ? 6 : 10;
-        const ivyLeavesMesh = new THREE.InstancedMesh(vineLeafGeo, vineLeafMat, ivyCount * 14);
+        const ivyLeavesMesh = new THREE.InstancedMesh(vineLeafGeo, vineLeafMat, ivyCount * 12);
         let ivyLeafIdx = 0;
 
         // Variant 1: Creeping Ivy with leaves hugging the wall
         for (let i = 0; i < ivyCount; i++) {
             const a = envRand() * Math.PI * 2;
-            const startY = 12 + envRand() * 45;
+            const startY = 12 + envRand() * (WELL_HEIGHT - 20);
             const len = 6 + envRand() * 12;
             const points = [];
             for (let p = 0; p < 7; p++) {
@@ -629,7 +653,7 @@
                 points.push(pt);
 
                 // Add ivy leaves along the spine
-                if (p > 0 && ivyLeafIdx < ivyCount * 14) {
+                if (p > 0 && ivyLeafIdx < ivyCount * 12) {
                     for (let lf = 0; lf < 2; lf++) {
                         const side = lf === 0 ? 1 : -1;
                         vegDummy.position.set(
@@ -645,7 +669,7 @@
                 }
             }
             const curve = new THREE.CatmullRomCurve3(points);
-            const tube = new THREE.Mesh(new THREE.TubeGeometry(curve, 18, 0.028, 4, false), vineStemMat);
+            const tube = new THREE.Mesh(new THREE.TubeGeometry(curve, MOBILE_RENDER_BUDGET ? 24 : 36, 0.028, 8, false), vineStemMat);
             tube.receiveShadow = true;
             vegGroup.add(tube);
         }
@@ -667,7 +691,7 @@
                 points.push(new THREE.Vector3(Math.cos(aa) * rr, startY - t * len, Math.sin(aa) * rr));
             }
             const curve = new THREE.CatmullRomCurve3(points);
-            const tube = new THREE.Mesh(new THREE.TubeGeometry(curve, 16, 0.038, 4, false), vineStemMat);
+            const tube = new THREE.Mesh(new THREE.TubeGeometry(curve, MOBILE_RENDER_BUDGET ? 24 : 36, 0.038, 8, false), vineStemMat);
             tube.receiveShadow = true;
             vegGroup.add(tube);
         }
@@ -676,7 +700,7 @@
         const tendrilCount = MOBILE_RENDER_BUDGET ? 6 : 10;
         for (let i = 0; i < tendrilCount; i++) {
             const a = envRand() * Math.PI * 2;
-            const startY = 4 + envRand() * 28;
+            const startY = 4 + envRand() * (WELL_HEIGHT * 0.5 - 4);
             const points = [];
             for (let p = 0; p < 5; p++) {
                 const t = p / 4;
@@ -686,12 +710,12 @@
                 points.push(new THREE.Vector3(Math.cos(aa) * rr, startY + curl - t * 3.2, Math.sin(aa) * rr));
             }
             const curve = new THREE.CatmullRomCurve3(points);
-            const tube = new THREE.Mesh(new THREE.TubeGeometry(curve, 12, 0.022, 3, false), vineStemMat);
+            const tube = new THREE.Mesh(new THREE.TubeGeometry(curve, 20, 0.022, 6, false), vineStemMat);
             vegGroup.add(tube);
         }
 
         // 4. ANCIENT GNARLED ROOTS (Snaking down from well rim)
-        const rootMat = new THREE.MeshStandardMaterial({ color: 0x382417, roughness: 0.96, metalness: 0.0 });
+        const rootMat = vineStemMat;
         const rootTipMat = new THREE.MeshStandardMaterial({ color: 0x24160f, roughness: 1.0 });
         const rootCount = MOBILE_RENDER_BUDGET ? 5 : 8;
         for (let i = 0; i < rootCount; i++) {
@@ -718,15 +742,10 @@
             vegGroup.add(tip);
         }
 
-        // 5. FLOATING WATER LEAVES & LILY PADS (InstancedMesh on groundwater)
-        // Notched circular lily pad geometry (thetaLength = 1.84 * PI leaves natural V-notch)
-        const lilyPadGeo = new THREE.CircleGeometry(0.32, 14, 0, Math.PI * 1.84);
-        const lilyPadMat = new THREE.MeshStandardMaterial({
-            color: 0x386b2d,
-            roughness: 0.72,
-            metalness: 0.02,
-            side: THREE.DoubleSide
-        });
+        // 5. FALLEN LEAVES FLOATING ON GROUNDWATER (shared alpha-cutout material)
+        const lilyPadGeo = new THREE.PlaneGeometry(0.58, 0.64, 2, 2);
+        const lilyPadMat = fernMatA.clone();
+        lilyPadMat.roughness = 0.72;
         const lilyCount = MOBILE_RENDER_BUDGET ? 14 : 22;
         const lilyPadMesh = new THREE.InstancedMesh(lilyPadGeo, lilyPadMat, lilyCount);
 
@@ -769,8 +788,8 @@
         envRoot.add(stoneDetailGroup);
 
         // 1. Irregular stone crown around the mouth of the well (Coping Stones)
-        const rimStoneGeo = new THREE.DodecahedronGeometry(0.72, 0);
-        const rimStoneMat = new THREE.MeshStandardMaterial({ color: 0x4d574d, roughness: 0.94, metalness: 0.0, flatShading: true });
+        const rimStoneGeo = new THREE.DodecahedronGeometry(0.72, 1);
+        const rimStoneMat = new THREE.MeshStandardMaterial({ map: rockMap, normalMap: rockNormalMap, normalScale: new THREE.Vector2(0.45, 0.45), roughnessMap: rockRoughnessMap, roughness: 0.94, metalness: 0.0 });
         const rimStoneCount = MOBILE_RENDER_BUDGET ? 24 : 34;
         const rimStones = new THREE.InstancedMesh(rimStoneGeo, rimStoneMat, rimStoneCount);
         const rimDummy = new THREE.Object3D();
@@ -789,8 +808,8 @@
         stoneDetailGroup.add(rimStones);
 
         // 2. Protruding Masonry Wall Stones (Physical blocks breaking the flat cylinder silhouette inside the shaft)
-        const wallStoneGeo = new THREE.DodecahedronGeometry(0.42, 0);
-        const wallStoneMat = new THREE.MeshStandardMaterial({ color: 0x435147, roughness: 0.92, metalness: 0.0, flatShading: true });
+        const wallStoneGeo = new THREE.DodecahedronGeometry(0.42, 1);
+        const wallStoneMat = rimStoneMat;
         const wallStoneCount = MOBILE_RENDER_BUDGET ? 28 : 42;
         const wallStones = new THREE.InstancedMesh(wallStoneGeo, wallStoneMat, wallStoneCount);
         const wallStoneDummy = new THREE.Object3D();
@@ -809,9 +828,9 @@
         wallStones.receiveShadow = true;
         stoneDetailGroup.add(wallStones);
 
-        // Low-poly canopy around the opening. The center stays clear so the exit remains readable.
-        const canopyGeo = new THREE.DodecahedronGeometry(0.48, 0);
-        const canopyMat = new THREE.MeshStandardMaterial({ color: 0x244d29, roughness: 0.94, flatShading: true });
+        // Textured canopy leaves around the opening; keep the center clear for the exit.
+        const canopyGeo = vineLeafGeo;
+        const canopyMat = vineLeafMat;
         const canopyCount = MOBILE_RENDER_BUDGET ? 46 : 82;
         const canopy = new THREE.InstancedMesh(canopyGeo, canopyMat, canopyCount);
         const canopyDummy = new THREE.Object3D();
@@ -941,8 +960,8 @@
         scene.add(waterSheenMesh);
 
         // Floating duckweed / algae patches sell the stagnant old-well look.
-        const algaeGeo = new THREE.CircleGeometry(0.18, 7);
-        const algaeMat = new THREE.MeshStandardMaterial({ color: 0x507f2d, roughness: 0.92, side: THREE.DoubleSide });
+        const algaeGeo = new THREE.PlaneGeometry(0.22, 0.24);
+        const algaeMat = fernMatB;
         const algaeCount = MOBILE_RENDER_BUDGET ? 20 : 34;
         const algae = new THREE.InstancedMesh(algaeGeo, algaeMat, algaeCount);
         const algaeDummy = new THREE.Object3D();
@@ -960,8 +979,9 @@
         scene.add(algae);
 
         // Wet stones around the waterline frame the coconut without changing collision.
-        const bottomRockGeo = new THREE.DodecahedronGeometry(0.34, 0);
-        const bottomRockMat = new THREE.MeshStandardMaterial({ color: 0x243229, roughness: 0.58, metalness: 0.03, flatShading: true });
+        const bottomRockGeo = new THREE.DodecahedronGeometry(0.34, 1);
+        const bottomRockMat = rimStoneMat.clone();
+        bottomRockMat.roughness = 0.58;
         const bottomRockCount = MOBILE_RENDER_BUDGET ? 15 : 25;
         const bottomRocks = new THREE.InstancedMesh(bottomRockGeo, bottomRockMat, bottomRockCount);
         const bottomRockDummy = new THREE.Object3D();
@@ -1247,27 +1267,31 @@
             isCoconut: true
         });
 
-        const totalSteps = 27;
+        const totalSteps = Math.ceil((WELL_HEIGHT - 5) / 2.25);
         let currentAngle = 0.35;
 
-        // Crop one stone from the existing wall maps, rather than wrapping a whole wall onto each brick.
-        const brickColorMap = loadWellPBRTexture(WELL_PBR_BASECOLOR, true);
-        const brickNormalMap = loadWellPBRTexture(WELL_PBR_NORMAL);
-        const brickRoughnessMap = loadWellPBRTexture(WELL_PBR_ROUGHNESS);
-        [brickColorMap, brickNormalMap, brickRoughnessMap].forEach(tex => {
-            tex.repeat.set(0.22, 0.10);
-            tex.offset.set(0.42, 0.29);
-        });
-        const brickMat = new THREE.MeshStandardMaterial({
-            map: brickColorMap,
-            normalMap: brickNormalMap,
+        const steppingStoneMaterials = [0xb9a080, 0x899087, 0x666d69, 0xb8bab4].map(color => new THREE.MeshStandardMaterial({
+            map: rockMap,
+            normalMap: rockNormalMap,
             normalScale: new THREE.Vector2(0.55, 0.55),
-            roughnessMap: brickRoughnessMap,
-            color: 0xc5c0aa,
+            roughnessMap: rockRoughnessMap,
+            color,
             roughness: 0.92,
-            metalness: 0.0,
-            flatShading: true
-        });
+            metalness: 0.0
+        }));
+
+        const stoneBevel = 0.14;
+        function createSteppingStoneGeometry(outline, height) {
+            const shape = new THREE.Shape();
+            shape.moveTo(...outline[0]);
+            outline.slice(1).forEach(point => shape.lineTo(...point));
+            shape.closePath();
+            return new THREE.ExtrudeGeometry(shape, {
+                depth: height - stoneBevel * 2, steps: 1,
+                bevelEnabled: true, bevelThickness: stoneBevel,
+                bevelSize: stoneBevel, bevelSegments: 3
+            }).rotateX(Math.PI / 2).translate(0, height / 2 - stoneBevel, 0);
+        }
 
         for (let i = 1; i <= totalSteps; i++) {
             const progress = i / totalSteps;
@@ -1281,22 +1305,26 @@
 
             const pGroup = new THREE.Group();
             pGroup.position.set(x, y, z);
-            // Orient radially so the brick juts out straight from the circular wall towards well center
+            // The back of each natural rock remains embedded in the circular wall.
             pGroup.rotation.y = -normAngle + Math.PI / 2;
 
             const rad = 1.35 - (progress * 0.22);
             const brickWidth = rad * 2.15;
-            const brickHeight = 0.85;
+            const brickHeight = 0.85 + Math.sin(i * 2.1) * 0.15;
             const frontDepth = rad * 1.65 / 2;
-            // A single solid brick reaches into the wall; no separate shelf or supporting beam.
             const backDepth = WELL_RADIUS - dist + 0.45;
             const brickDepth = frontDepth + backDepth;
             const brickOffsetZ = (backDepth - frontDepth) / 2;
             const brickOffsetY = (0.44 - brickHeight) / 2; // Preserve the existing jump landing height.
 
-            // 1. Main Protruding Stone Brick (แผ่นหิน/อิฐหลักที่ตัวกบเหยียบ)
-            const mainBrickGeo = new THREE.BoxGeometry(brickWidth, brickHeight, brickDepth);
-            const mainBrickMesh = new THREE.Mesh(mainBrickGeo, brickMat);
+            // Asymmetric clipped outlines, with a flat cap for reliable footing.
+            const outline = [[-0.48, -0.28], [-0.28, -0.50], [0.25, -0.47], [0.49, -0.26],
+                [0.46, 0.28], [0.25, 0.50], [-0.30, 0.48], [-0.50, 0.18]].map(([sx, sz], corner) => [
+                (sx + Math.sin(i * 3.7 + corner * 2.3) * 0.045) * brickWidth,
+                (sz + Math.cos(i * 2.9 + corner * 1.7) * 0.035) * brickDepth
+            ]);
+            const mainBrickGeo = createSteppingStoneGeometry(outline, brickHeight);
+            const mainBrickMesh = new THREE.Mesh(mainBrickGeo, steppingStoneMaterials[(i - 1) % steppingStoneMaterials.length]);
             mainBrickMesh.position.set(0, brickOffsetY, brickOffsetZ);
             mainBrickMesh.castShadow = true;
             mainBrickMesh.receiveShadow = true;
@@ -1307,8 +1335,7 @@
             platforms.push({
                 pos: new THREE.Vector3(x + Math.cos(normAngle) * brickOffsetZ, y + brickOffsetY, z + Math.sin(normAngle) * brickOffsetZ),
                 angle: normAngle,
-                halfWidth: brickWidth / 2,
-                halfDepth: brickDepth / 2,
+                outline,
                 height: brickHeight
             });
         }
@@ -1739,13 +1766,13 @@
             if (!storyMilestones.firstJump && y > 1.8) {
                 storyMilestones.firstJump = true;
                 triggerSpeech("ว้าววว! นอกกะลามันสว่างขนาดนี้เลยเหรอ!? ...เดี๋ยวนะ นี่มันแค่ก้นบ่อน้ำเองนี่หว่า!?");
-            } else if (!storyMilestones.quarter && y > 16.0) {
+            } else if (!storyMilestones.quarter && y > WELL_HEIGHT * 0.25) {
                 storyMilestones.quarter = true;
                 triggerSpeech("โอ้โห บ่อนี้มันจะลึกไปไหนเนี่ย เริ่มเห็นแสงข้างบนแล้ว!");
-            } else if (!storyMilestones.halfway && y > 32.0) {
+            } else if (!storyMilestones.halfway && y > WELL_HEIGHT * 0.5) {
                 storyMilestones.halfway = true;
                 triggerSpeech("มาได้ครึ่งทางแล้ว! กะลาใบเดิมก้นบ่อเหลืออันจิ๋วเดียวเอง!");
-            } else if (!storyMilestones.nearTop && y > 52.0) {
+            } else if (!storyMilestones.nearTop && y > WELL_HEIGHT * 0.8) {
                 storyMilestones.nearTop = true;
                 triggerSpeech("ได้กลิ่นสายลมกับทุ่งหญ้าแล้ว! อีกนิดเดียวกระโดดข้ามขอบบ่อเลย!");
             }
@@ -1970,7 +1997,14 @@
             if (p.angle === undefined) return Math.hypot(dx, dz) <= p.radius;
             const localX = dx * Math.sin(p.angle) - dz * Math.cos(p.angle);
             const localZ = dx * Math.cos(p.angle) + dz * Math.sin(p.angle);
-            return Math.abs(localX) <= p.halfWidth && Math.abs(localZ) <= p.halfDepth;
+            let inside = false;
+            for (let i = 0, j = p.outline.length - 1; i < p.outline.length; j = i++) {
+                const [ax, az] = p.outline[i];
+                const [bx, bz] = p.outline[j];
+                if ((az > localZ) !== (bz > localZ) &&
+                    localX < (bx - ax) * (localZ - az) / (bz - az) + ax) inside = !inside;
+            }
+            return inside;
         }
 
         function updatePhysics(dt) {
@@ -2563,10 +2597,10 @@
         const btnMidCam = document.getElementById('btn-mid-cam');
         if (btnMidCam) {
             btnMidCam.addEventListener('click', () => {
-                inspectCamYOffset = 30.0;
+                inspectCamYOffset = WELL_HEIGHT * 0.5;
                 camDistance = 5.6;
                 camPhi = 0.22;
-                triggerSpeech("ส่องดงเฟิร์น มอส และเถาวัลย์กลางบ่อน้ำ (30 เมตร)");
+                triggerSpeech(`ส่องดงเฟิร์น มอส และเถาวัลย์กลางบ่อน้ำ (${WELL_HEIGHT * 0.5} เมตร)`);
                 frogAudio.playCroak();
             });
         }
@@ -2588,10 +2622,10 @@
         const btnRimCam = document.getElementById('btn-rim-cam');
         if (btnRimCam) {
             btnRimCam.addEventListener('click', () => {
-                inspectCamYOffset = 58.5;
+                inspectCamYOffset = WELL_HEIGHT - 6.5;
                 camDistance = 6.2;
                 camPhi = 0.28;
-                triggerSpeech("ส่องหินขอบปากบ่อ แสงตะวัน และรากไม้โบราณ (58 เมตร)");
+                triggerSpeech(`ส่องหินขอบปากบ่อ แสงตะวัน และรากไม้โบราณ (${WELL_HEIGHT - 6.5} เมตร)`);
                 frogAudio.playCroak();
             });
         }

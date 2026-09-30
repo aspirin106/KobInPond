@@ -1,4 +1,4 @@
-const CACHE_NAME = 'kob-in-kala-v1';
+const CACHE_NAME = 'kob-in-kala-v3-tall-rocks';
 
 const STATIC_ASSETS = [
     './',
@@ -12,7 +12,17 @@ const STATIC_ASSETS = [
     './images/well_stone_basecolor.webp',
     './images/well_stone_normal.webp',
     './images/well_stone_roughness.webp',
-    './images/well_stone_ao.webp'
+    './images/well_stone_ao.webp',
+    './images/generated/brick-albedo.webp',
+    './images/generated/brick-normal.webp',
+    './images/generated/brick-roughness.webp',
+    './images/generated/rock-albedo.webp',
+    './images/generated/rock-normal.webp',
+    './images/generated/rock-roughness.webp',
+    './images/generated/leaf-albedo.webp',
+    './images/generated/vine-albedo.webp',
+    './images/generated/vine-normal.webp',
+    './images/generated/vine-roughness.webp'
 ];
 
 // Install: Cache all critical assets for full offline play
