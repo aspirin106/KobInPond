@@ -1,0 +1,2171 @@
+/* Procedural Web Audio for rich cartoon sounds without external assets */
+        class ProceduralAudio {
+            constructor() {
+                this.ctx = null;
+                this.enabled = true;
+            }
+
+            ensureContext() {
+                if (!this.ctx) {
+                    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+                    if (AudioContextClass) this.ctx = new AudioContextClass();
+                }
+                if (this.ctx && this.ctx.state === 'suspended') {
+                    this.ctx.resume();
+                }
+            }
+
+            playCroak() {
+                if (!this.enabled) return;
+                this.ensureContext();
+                if (!this.ctx) return;
+                try {
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    const filter = this.ctx.createBiquadFilter();
+
+                    osc.type = 'sawtooth';
+                    filter.type = 'bandpass';
+                    filter.frequency.setValueAtTime(420, this.ctx.currentTime);
+
+                    osc.frequency.setValueAtTime(170, this.ctx.currentTime);
+                    osc.frequency.linearRampToValueAtTime(75, this.ctx.currentTime + 0.13);
+
+                    gain.gain.setValueAtTime(0.18, this.ctx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.14);
+
+                    osc.connect(filter);
+                    filter.connect(gain);
+                    gain.connect(this.ctx.destination);
+
+                    osc.start();
+                    osc.stop(this.ctx.currentTime + 0.15);
+                } catch(e) {}
+            }
+
+            playJump(power) {
+                if (!this.enabled) return;
+                this.ensureContext();
+                if (!this.ctx) return;
+                try {
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+
+                    osc.type = 'sine';
+                    const baseFreq = 180 + power * 260;
+                    osc.frequency.setValueAtTime(baseFreq, this.ctx.currentTime);
+                    osc.frequency.exponentialRampToValueAtTime(baseFreq * 2.5, this.ctx.currentTime + 0.23);
+
+                    gain.gain.setValueAtTime(0.22, this.ctx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.25);
+
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+
+                    osc.start();
+                    osc.stop(this.ctx.currentTime + 0.26);
+                } catch(e) {}
+            }
+
+            playLand() {
+                if (!this.enabled) return;
+                this.ensureContext();
+                if (!this.ctx) return;
+                try {
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(90, this.ctx.currentTime);
+                    osc.frequency.exponentialRampToValueAtTime(32, this.ctx.currentTime + 0.11);
+
+                    gain.gain.setValueAtTime(0.22, this.ctx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.12);
+
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+
+                    osc.start();
+                    osc.stop(this.ctx.currentTime + 0.13);
+                } catch(e) {}
+            }
+
+            playSplash() {
+                if (!this.enabled) return;
+                this.ensureContext();
+                if (!this.ctx) return;
+                try {
+                    const bufferSize = this.ctx.sampleRate * 0.22;
+                    const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+                    const data = buffer.getChannelData(0);
+                    for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+
+                    const noise = this.ctx.createBufferSource();
+                    noise.buffer = buffer;
+
+                    const filter = this.ctx.createBiquadFilter();
+                    filter.type = 'bandpass';
+                    filter.frequency.setValueAtTime(700, this.ctx.currentTime);
+                    filter.frequency.exponentialRampToValueAtTime(180, this.ctx.currentTime + 0.22);
+
+                    const gain = this.ctx.createGain();
+                    gain.gain.setValueAtTime(0.2, this.ctx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.22);
+
+                    noise.connect(filter);
+                    filter.connect(gain);
+                    gain.connect(this.ctx.destination);
+
+                    noise.start();
+                    noise.stop(this.ctx.currentTime + 0.22);
+                } catch(e) {}
+            }
+
+            playFanfare() {
+                if (!this.enabled) return;
+                this.ensureContext();
+                if (!this.ctx) return;
+                const notes = [261.6, 329.6, 392.0, 523.2, 659.2, 784.0];
+                notes.forEach((freq, idx) => {
+                    setTimeout(() => {
+                        try {
+                            const osc = this.ctx.createOscillator();
+                            const gain = this.ctx.createGain();
+                            osc.type = 'triangle';
+                            osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
+                            gain.gain.setValueAtTime(0.18, this.ctx.currentTime);
+                            gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.35);
+                            osc.connect(gain);
+                            gain.connect(this.ctx.destination);
+                            osc.start();
+                            osc.stop(this.ctx.currentTime + 0.38);
+                        } catch(e) {}
+                    }, idx * 110);
+                });
+            }
+        }
+
+        const frogAudio = new ProceduralAudio();
+
+        const container = document.getElementById('canvas-container');
+        const scene = new THREE.Scene();
+        const MOBILE_RENDER_BUDGET = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) || Math.min(window.innerWidth, window.innerHeight) < 720;
+        scene.fog = new THREE.FogExp2(0x06100b, 0.0235);
+
+        const getW = () => container.clientWidth || window.innerWidth || 800;
+        const getH = () => container.clientHeight || window.innerHeight || 600;
+
+        const camera = new THREE.PerspectiveCamera(54, getW() / getH(), 0.1, 300);
+
+        let renderer;
+        try {
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: 'high-performance' });
+        } catch(e) {
+            renderer = new THREE.WebGLRenderer({ antialias: false });
+        }
+        renderer.setSize(getW(), getH());
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, MOBILE_RENDER_BUDGET ? 1.65 : 2));
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        renderer.outputEncoding = THREE.sRGBEncoding;
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        renderer.toneMappingExposure = 0.90;
+        container.appendChild(renderer.domElement);
+
+        // Environment polish: richer depth while keeping the scene lightweight
+        scene.background = new THREE.Color(0x020704);
+        scene.fog = new THREE.FogExp2(0x040d08, 0.022);
+
+        // ------------------------------------------------------------------
+        // STEP 2: 3-ZONE LIGHTING (Upper Warm -> Mid Green -> Bottom Cool Damp)
+        // ------------------------------------------------------------------
+        // Base Ambient: Dim, mossy tone so contrast between top and bottom is dramatic
+        const ambientLight = new THREE.AmbientLight(0x18281f, 0.42);
+        scene.add(ambientLight);
+
+        // Hemisphere Light: Bright canopy sky above, deep cavern darkness below
+        const hemiLight = new THREE.HemisphereLight(0xa5cfa8, 0x050c07, 0.40);
+        scene.add(hemiLight);
+
+        // 1. UPPER ZONE: Warm direct sunlight from well opening grazing down the PBR stone
+        const sunLight = new THREE.DirectionalLight(0xfff3d6, 3.6);
+        sunLight.position.set(6.5, 78, 3.8);
+        sunLight.castShadow = true;
+        sunLight.shadow.mapSize.width = MOBILE_RENDER_BUDGET ? 768 : 1024;
+        sunLight.shadow.mapSize.height = MOBILE_RENDER_BUDGET ? 768 : 1024;
+        sunLight.shadow.camera.near = 0.5;
+        sunLight.shadow.camera.far = 115;
+        const d = 11;
+        sunLight.shadow.camera.left = -d;
+        sunLight.shadow.camera.right = d;
+        sunLight.shadow.camera.top = d;
+        sunLight.shadow.camera.bottom = -d;
+        sunLight.shadow.bias = -0.0004;
+        scene.add(sunLight);
+
+        // Warm shaft beam from opening rim
+        const openingLight = new THREE.SpotLight(0xffe8b5, 2.8, 95, 0.44, 0.85, 1.3);
+        openingLight.position.set(3.0, 72, 1.2);
+        openingLight.target.position.set(0, 10, 0);
+        scene.add(openingLight);
+        scene.add(openingLight.target);
+
+        // 2. MIDDLE ZONE: Darker mossy green diffuse ambiance
+        const midBounce = new THREE.PointLight(0x2d5c34, 0.45, 32);
+        midBounce.position.set(2.2, 34, -1.8);
+        scene.add(midBounce);
+
+        const midBounce2 = new THREE.PointLight(0x1f4a28, 0.35, 28);
+        midBounce2.position.set(-2.0, 22, 1.6);
+        scene.add(midBounce2);
+
+        // 3. BOTTOM ZONE: Cool, damp groundwater reflection
+        const lowerBounce = new THREE.PointLight(0x124a40, 0.65, 22);
+        lowerBounce.position.set(0, 3.5, 0);
+        scene.add(lowerBounce);
+
+        // 4. FROG GLOW: Follows voxel hero so it remains clearly readable against dark walls
+        const frogGlowLight = new THREE.PointLight(0xc8ffd6, 1.35, 9.5);
+        scene.add(frogGlowLight);
+
+        function generateStoneWallTextures() {
+            const size = 1024;
+            const colorCanvas = document.createElement('canvas');
+            const bumpCanvas = document.createElement('canvas');
+            colorCanvas.width = colorCanvas.height = size;
+            bumpCanvas.width = bumpCanvas.height = size;
+            const c = colorCanvas.getContext('2d');
+            const b = bumpCanvas.getContext('2d');
+
+            // Stable texture every launch so the well keeps the same visual identity.
+            let seed = 0xC0C0A11;
+            const rnd = () => {
+                seed = (seed * 1664525 + 1013904223) >>> 0;
+                return seed / 4294967296;
+            };
+
+            c.fillStyle = '#172019';
+            c.fillRect(0, 0, size, size);
+            b.fillStyle = '#3a3a3a';
+            b.fillRect(0, 0, size, size);
+
+            let y = -18;
+            let row = 0;
+            while (y < size + 30) {
+                const h = 43 + rnd() * 19;
+                let x = (row % 2 ? -78 : -18) - rnd() * 45;
+                while (x < size + 60) {
+                    const w = 92 + rnd() * 85;
+                    const inset = 7 + rnd() * 5;
+                    const x0 = x + inset;
+                    const y0 = y + inset * 0.72;
+                    const x1 = x + w - inset;
+                    const y1 = y + h - inset * 0.72;
+                    const j = 4 + rnd() * 7;
+
+                    const pts = [
+                        [x0 + rnd()*j, y0 + rnd()*j],
+                        [x1 - rnd()*j, y0 + rnd()*j],
+                        [x1 - rnd()*j, y1 - rnd()*j],
+                        [x0 + rnd()*j, y1 - rnd()*j]
+                    ];
+
+                    const base = 48 + Math.floor(rnd() * 30);
+                    const green = base + 8 + Math.floor(rnd() * 11);
+                    const blue = base + 4 + Math.floor(rnd() * 8);
+
+                    c.beginPath();
+                    c.moveTo(pts[0][0], pts[0][1]);
+                    for (let p = 1; p < pts.length; p++) c.lineTo(pts[p][0], pts[p][1]);
+                    c.closePath();
+                    c.fillStyle = `rgb(${base}, ${green}, ${blue})`;
+                    c.fill();
+                    c.strokeStyle = 'rgba(9, 14, 10, 0.94)';
+                    c.lineWidth = 7 + rnd() * 3;
+                    c.stroke();
+
+                    // Hand-painted bevel: bright upper lip, deep lower edge.
+                    c.strokeStyle = 'rgba(164, 180, 155, 0.16)';
+                    c.lineWidth = 2.2;
+                    c.beginPath();
+                    c.moveTo(pts[0][0] + 3, pts[0][1] + 3);
+                    c.lineTo(pts[1][0] - 3, pts[1][1] + 3);
+                    c.stroke();
+                    c.strokeStyle = 'rgba(0, 0, 0, 0.24)';
+                    c.beginPath();
+                    c.moveTo(pts[3][0] + 3, pts[3][1] - 2);
+                    c.lineTo(pts[2][0] - 3, pts[2][1] - 2);
+                    c.stroke();
+
+                    // Mineral freckles and damp discoloration.
+                    for (let f = 0; f < 7; f++) {
+                        const fx = x0 + rnd() * Math.max(2, x1 - x0);
+                        const fy = y0 + rnd() * Math.max(2, y1 - y0);
+                        const rr = 1 + rnd() * 4;
+                        c.fillStyle = rnd() > 0.5 ? 'rgba(196,204,183,0.055)' : 'rgba(4,15,10,0.11)';
+                        c.beginPath(); c.arc(fx, fy, rr, 0, Math.PI*2); c.fill();
+                    }
+
+                    // Height map for fake relief without extra wall geometry.
+                    b.beginPath();
+                    b.moveTo(pts[0][0], pts[0][1]);
+                    for (let p = 1; p < pts.length; p++) b.lineTo(pts[p][0], pts[p][1]);
+                    b.closePath();
+                    const bumpShade = 145 + Math.floor(rnd() * 74);
+                    b.fillStyle = `rgb(${bumpShade},${bumpShade},${bumpShade})`;
+                    b.fill();
+                    b.strokeStyle = '#222';
+                    b.lineWidth = 8;
+                    b.stroke();
+
+                    // Moss grows mostly on upper/side edges of stones.
+                    if (rnd() > 0.43) {
+                        const patches = 1 + Math.floor(rnd() * 3);
+                        for (let m = 0; m < patches; m++) {
+                            const mx = x0 + rnd() * (x1 - x0);
+                            const my = rnd() > 0.42 ? y0 + rnd()*10 : y0 + rnd()*(y1-y0);
+                            const rx = 8 + rnd() * 25;
+                            const ry = 4 + rnd() * 12;
+                            c.fillStyle = `rgba(${25 + Math.floor(rnd()*20)}, ${70 + Math.floor(rnd()*48)}, ${25 + Math.floor(rnd()*18)}, ${0.20 + rnd()*0.27})`;
+                            c.beginPath();
+                            c.ellipse(mx, my, rx, ry, rnd()*1.2, 0, Math.PI*2);
+                            c.fill();
+                        }
+                    }
+
+                    x += w;
+                }
+                y += h;
+                row++;
+            }
+
+            // Long wet streaks from groundwater seepage.
+            for (let i = 0; i < 52; i++) {
+                const sx = rnd() * size;
+                const sy = rnd() * size * 0.75;
+                const len = 50 + rnd() * 180;
+                const grad = c.createLinearGradient(sx, sy, sx + 4, sy + len);
+                grad.addColorStop(0, 'rgba(4,12,8,0.01)');
+                grad.addColorStop(0.18, 'rgba(4,12,8,0.20)');
+                grad.addColorStop(0.75, 'rgba(2,9,6,0.14)');
+                grad.addColorStop(1, 'rgba(2,9,6,0.01)');
+                c.strokeStyle = grad;
+                c.lineWidth = 2 + rnd() * 5;
+                c.beginPath();
+                c.moveTo(sx, sy);
+                c.bezierCurveTo(sx + (rnd()-.5)*12, sy+len*.35, sx+(rnd()-.5)*10, sy+len*.7, sx+(rnd()-.5)*8, sy+len);
+                c.stroke();
+            }
+
+            const color = new THREE.CanvasTexture(colorCanvas);
+            const bump = new THREE.CanvasTexture(bumpCanvas);
+            [color, bump].forEach(tex => {
+                tex.wrapS = THREE.RepeatWrapping;
+                tex.wrapT = THREE.RepeatWrapping;
+                tex.repeat.set(4.3, 18.5);
+                tex.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
+            });
+            return { color, bump };
+        }
+
+        function generateCoconutTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 256;
+            canvas.height = 256;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#452712';
+            ctx.fillRect(0, 0, 256, 256);
+
+            ctx.strokeStyle = '#2b1609';
+            ctx.lineWidth = 1.5;
+            for (let i = 0; i < 350; i++) {
+                ctx.beginPath();
+                const x = Math.random() * 256;
+                const y = Math.random() * 256;
+                ctx.moveTo(x, y);
+                ctx.lineTo(x + (Math.random() - 0.5) * 8, y + 10 + Math.random() * 16);
+                ctx.stroke();
+            }
+            return new THREE.CanvasTexture(canvas);
+        }
+
+        const WELL_RADIUS = 6.8;
+        const WELL_HEIGHT = 65.0;
+
+        /*
+           Camera Cutaway Through Wall:
+           By using standard CylinderGeometry with THREE.BackSide:
+           - From the inside: all walls are fully rendered with brick textures.
+           - From the outside: the wall between the camera and the frog is automatically
+             backface-culled (100% see-through/transparent).
+           - This allows orbiting the camera at any angle or distance through the wall,
+             ensuring the frog is ALWAYS visible without any wall obstruction or clipping!
+        */
+        const wellGeo = new THREE.CylinderGeometry(WELL_RADIUS, WELL_RADIUS, WELL_HEIGHT, 56, 1, true);
+
+        // PBR STONE WALL TEST
+        // Four generated maps are embedded in this HTML so the mobile download remains one self-contained file.
+        // BaseColor = visible stone/moss colour, Normal = relief, Roughness = dry/wet response, AO = crevice depth.
+        if (wellGeo.attributes.uv && !wellGeo.attributes.uv2) {
+            wellGeo.setAttribute('uv2', new THREE.BufferAttribute(wellGeo.attributes.uv.array.slice(), 2));
+        }
+
+        const WELL_PBR_BASECOLOR = (window.WELL_PBR_DATA && window.WELL_PBR_DATA.basecolor) || 'well_stone_basecolor.webp';
+        const WELL_PBR_NORMAL = (window.WELL_PBR_DATA && window.WELL_PBR_DATA.normal) || 'well_stone_normal.webp';
+        const WELL_PBR_ROUGHNESS = (window.WELL_PBR_DATA && window.WELL_PBR_DATA.roughness) || 'well_stone_roughness.webp';
+        const WELL_PBR_AO = (window.WELL_PBR_DATA && window.WELL_PBR_DATA.ao) || 'well_stone_ao.webp';
+
+        const wellTextureLoader = new THREE.TextureLoader();
+
+        // PBR Wall Scale Presets:
+        // Whole integer repeat.x ensures 100% seamless 360° wrapping on CylinderGeometry.
+        // Ratio repeat.y / repeat.x ~= 65.0 / (2 * Math.PI * 6.8) ~= 1.521 for metric 1:1 square tiles.
+        const WALL_PBR_PRESETS = [
+            { name: '6x9 (Chunky / มาตรฐาน)', rx: 6, ry: 9, desc: 'หินก้อนโต สัดส่วน 1:1 ไร้รอยต่อ 360°' },
+            { name: '8x12 (Refined / ก้อนถี่)', rx: 8, ry: 12, desc: 'หินก้อนย่อย รายละเอียดถี่ สมจริง' },
+            { name: '3.2x10.5 (Old Test / บั๊ก Seam)', rx: 3.2, ry: 10.5, desc: 'แบบทดสอบเดิม (หินยืดแบน มีรอยต่อไม่เนียน)' }
+        ];
+        let currentWallPresetIdx = 0;
+
+        function loadWellPBRTexture(dataUri, isColor = false) {
+            const tex = wellTextureLoader.load(dataUri);
+            tex.wrapS = THREE.RepeatWrapping;
+            tex.wrapT = THREE.RepeatWrapping;
+            tex.repeat.set(WALL_PBR_PRESETS[0].rx, WALL_PBR_PRESETS[0].ry);
+            tex.anisotropy = Math.min(MOBILE_RENDER_BUDGET ? 4 : 8, renderer.capabilities.getMaxAnisotropy());
+            if (isColor) tex.encoding = THREE.sRGBEncoding;
+            return tex;
+        }
+
+        const wellBaseColorMap = loadWellPBRTexture(WELL_PBR_BASECOLOR, true);
+        const wellNormalMap = loadWellPBRTexture(WELL_PBR_NORMAL, false);
+        const wellRoughnessMap = loadWellPBRTexture(WELL_PBR_ROUGHNESS, false);
+        const wellAoMap = loadWellPBRTexture(WELL_PBR_AO, false);
+
+        const wellMat = new THREE.MeshStandardMaterial({
+            map: wellBaseColorMap,
+            normalMap: wellNormalMap,
+            normalScale: new THREE.Vector2(0.85, 0.85),
+            roughnessMap: wellRoughnessMap,
+            roughness: 0.90,
+            aoMap: wellAoMap,
+            aoMapIntensity: 0.90,
+            metalness: 0.0,
+            color: 0xffffff,
+            side: THREE.BackSide // Keeps the original outside-camera cutaway behavior.
+        });
+        const wellMesh = new THREE.Mesh(wellGeo, wellMat);
+        wellMesh.position.y = WELL_HEIGHT / 2;
+        wellMesh.receiveShadow = true;
+        scene.add(wellMesh);
+
+        function applyWallScalePreset(idx) {
+            currentWallPresetIdx = idx % WALL_PBR_PRESETS.length;
+            const p = WALL_PBR_PRESETS[currentWallPresetIdx];
+            [wellBaseColorMap, wellNormalMap, wellRoughnessMap, wellAoMap].forEach(tex => {
+                tex.repeat.set(p.rx, p.ry);
+                tex.needsUpdate = true;
+            });
+            return p;
+        }
+
+        // ------------------------------------------------------------------
+        // ENVIRONMENT SET DRESSING (visual-only, no gameplay collision)
+        // ------------------------------------------------------------------
+        const envRoot = new THREE.Group();
+        scene.add(envRoot);
+
+        // Deterministic pseudo-random generator so the environment stays stable
+        let envSeed = 87321;
+        function envRand() {
+            envSeed = (envSeed * 1664525 + 1013904223) >>> 0;
+            return envSeed / 4294967296;
+        }
+
+        const mossMatA = new THREE.MeshStandardMaterial({ color: 0x275f2c, roughness: 1.0, flatShading: true });
+        const mossMatB = new THREE.MeshStandardMaterial({ color: 0x3d7a35, roughness: 0.95, flatShading: true });
+        const wetRockMat = new THREE.MeshStandardMaterial({ color: 0x263a32, roughness: 0.52, metalness: 0.08, flatShading: true });
+
+        // Small moss/stone clumps hug the wall without affecting collision
+        for (let i = 0; i < (MOBILE_RENDER_BUDGET ? 34 : 68); i++) {
+            const a = envRand() * Math.PI * 2;
+            const y = 1.5 + envRand() * (WELL_HEIGHT - 4);
+            const r = WELL_RADIUS - 0.11;
+            const cluster = new THREE.Mesh(
+                new THREE.IcosahedronGeometry(0.18 + envRand() * 0.34, 0),
+                envRand() > 0.34 ? mossMatA : mossMatB
+            );
+            cluster.position.set(Math.cos(a) * r, y, Math.sin(a) * r);
+            cluster.scale.set(1.7 + envRand() * 1.7, 0.42 + envRand() * 0.8, 0.40 + envRand() * 0.42);
+            cluster.rotation.set(envRand() * Math.PI, -a, envRand() * 0.8);
+            cluster.castShadow = false;
+            cluster.receiveShadow = true;
+            envRoot.add(cluster);
+
+            if (i % 5 === 0) {
+                const pebble = new THREE.Mesh(new THREE.IcosahedronGeometry(0.12 + envRand() * 0.20, 0), wetRockMat);
+                pebble.position.copy(cluster.position);
+                pebble.position.y -= 0.28 + envRand() * 0.45;
+                pebble.position.multiplyScalar(0.996);
+                pebble.scale.set(1.4, 0.7, 0.8);
+                envRoot.add(pebble);
+            }
+        }
+
+        // Hanging vines follow the cylindrical wall, giving strong vertical scale cues
+        const vineMat = new THREE.MeshStandardMaterial({ color: 0x2f7133, roughness: 0.92 });
+        for (let i = 0; i < (MOBILE_RENDER_BUDGET ? 7 : 11); i++) {
+            const a = envRand() * Math.PI * 2;
+            const startY = 16 + envRand() * 47;
+            const len = 7 + envRand() * 15;
+            const points = [];
+            for (let p = 0; p < 6; p++) {
+                const t = p / 5;
+                const sway = Math.sin(t * Math.PI * 2 + i) * (0.10 + envRand() * 0.12);
+                const aa = a + sway;
+                const rr = WELL_RADIUS - 0.14 - Math.sin(t * Math.PI) * 0.04;
+                points.push(new THREE.Vector3(Math.cos(aa) * rr, startY - t * len, Math.sin(aa) * rr));
+            }
+            const curve = new THREE.CatmullRomCurve3(points);
+            const vine = new THREE.Mesh(new THREE.TubeGeometry(curve, 22, 0.035, 5, false), vineMat);
+            envRoot.add(vine);
+        }
+
+        // Thick old roots snake down from the opening. They are visual only.
+        const rootMat = new THREE.MeshStandardMaterial({ color: 0x3a2517, roughness: 0.96, metalness: 0.0 });
+        const rootTipMat = new THREE.MeshStandardMaterial({ color: 0x24160f, roughness: 1.0 });
+        const rootCount = MOBILE_RENDER_BUDGET ? 6 : 9;
+        for (let i = 0; i < rootCount; i++) {
+            const a = envRand() * Math.PI * 2;
+            const startY = WELL_HEIGHT + 1.1 + envRand() * 2.8;
+            const len = 9 + envRand() * 19;
+            const points = [];
+            for (let p = 0; p < 7; p++) {
+                const t = p / 6;
+                const bend = Math.sin(t * Math.PI * 1.4 + i * 0.8) * (0.05 + t * 0.13);
+                const aa = a + bend;
+                const rr = WELL_RADIUS - 0.09 - Math.sin(t * Math.PI) * (0.05 + envRand() * 0.05);
+                points.push(new THREE.Vector3(Math.cos(aa) * rr, startY - t * len, Math.sin(aa) * rr));
+            }
+            const curve = new THREE.CatmullRomCurve3(points);
+            const root = new THREE.Mesh(new THREE.TubeGeometry(curve, MOBILE_RENDER_BUDGET ? 18 : 26, 0.07 + envRand() * 0.055, 6, false), rootMat);
+            root.castShadow = true;
+            root.receiveShadow = true;
+            envRoot.add(root);
+
+            if (!MOBILE_RENDER_BUDGET || i % 2 === 0) {
+                const tip = new THREE.Mesh(new THREE.SphereGeometry(0.10, 6, 5), rootTipMat);
+                tip.position.copy(points[points.length - 1]);
+                tip.scale.set(0.7, 1.5, 0.7);
+                envRoot.add(tip);
+            }
+        }
+
+        // Fern-like leaves clinging to damp cracks. Flat blades keep draw cost modest.
+        const fernMat = new THREE.MeshStandardMaterial({ color: 0x315d32, roughness: 0.93, side: THREE.DoubleSide });
+        const fernBladeGeo = new THREE.PlaneGeometry(0.16, 0.55, 1, 1);
+        const fernCount = MOBILE_RENDER_BUDGET ? 22 : 38;
+        for (let i = 0; i < fernCount; i++) {
+            const a = envRand() * Math.PI * 2;
+            const y = 2 + envRand() * (WELL_HEIGHT - 5);
+            const group = new THREE.Group();
+            const blades = 3 + Math.floor(envRand() * 3);
+            for (let j = 0; j < blades; j++) {
+                const blade = new THREE.Mesh(fernBladeGeo, fernMat);
+                blade.position.set((j - (blades-1)/2) * 0.08, 0.1 + Math.abs(j-(blades-1)/2)*0.025, 0);
+                blade.rotation.z = (j - (blades-1)/2) * 0.28;
+                blade.rotation.x = -0.18 + envRand() * 0.22;
+                group.add(blade);
+            }
+            const rr = WELL_RADIUS - 0.10;
+            group.position.set(Math.cos(a) * rr, y, Math.sin(a) * rr);
+            group.rotation.y = -a - Math.PI/2;
+            group.rotation.z = (envRand() - .5) * 0.6;
+            group.scale.setScalar(0.65 + envRand() * 0.8);
+            envRoot.add(group);
+        }
+
+        // A pale sky card above the opening keeps the top bright while the shaft remains dark.
+        const skyDisc = new THREE.Mesh(
+            new THREE.CircleGeometry(28, 48),
+            new THREE.MeshBasicMaterial({ color: 0xc7ddc0, side: THREE.DoubleSide, fog: false })
+        );
+        skyDisc.rotation.x = Math.PI / 2;
+        skyDisc.position.y = WELL_HEIGHT + 10.5;
+        envRoot.add(skyDisc);
+
+        const skyGlow = new THREE.Mesh(
+            new THREE.CircleGeometry(11, 40),
+            new THREE.MeshBasicMaterial({ color: 0xffefc2, transparent: true, opacity: 0.22, side: THREE.DoubleSide, blending: THREE.AdditiveBlending, depthWrite: false, fog: false })
+        );
+        skyGlow.rotation.x = Math.PI / 2;
+        skyGlow.position.set(1.8, WELL_HEIGHT + 10.15, -0.8);
+        envRoot.add(skyGlow);
+
+        // Irregular stone crown around the mouth of the well.
+        const rimStoneGeo = new THREE.DodecahedronGeometry(0.72, 0);
+        const rimStoneMat = new THREE.MeshStandardMaterial({ color: 0x4d574d, roughness: 0.94, metalness: 0.0, flatShading: true });
+        const rimStoneCount = MOBILE_RENDER_BUDGET ? 24 : 34;
+        const rimStones = new THREE.InstancedMesh(rimStoneGeo, rimStoneMat, rimStoneCount);
+        const rimDummy = new THREE.Object3D();
+        for (let i = 0; i < rimStoneCount; i++) {
+            const a = (i / rimStoneCount) * Math.PI * 2 + (envRand() - .5) * 0.06;
+            const rr = WELL_RADIUS + 0.18 + (envRand() - .5) * 0.18;
+            rimDummy.position.set(Math.cos(a) * rr, WELL_HEIGHT + 0.23 + envRand() * 0.18, Math.sin(a) * rr);
+            rimDummy.rotation.set(envRand()*0.55, -a + envRand()*0.25, envRand()*0.45);
+            rimDummy.scale.set(0.95 + envRand()*0.45, 0.55 + envRand()*0.35, 0.68 + envRand()*0.38);
+            rimDummy.updateMatrix();
+            rimStones.setMatrixAt(i, rimDummy.matrix);
+        }
+        rimStones.instanceMatrix.needsUpdate = true;
+        rimStones.castShadow = true;
+        rimStones.receiveShadow = true;
+        envRoot.add(rimStones);
+
+        // Low-poly canopy around the opening. The center stays clear so the exit remains readable.
+        const canopyGeo = new THREE.DodecahedronGeometry(0.48, 0);
+        const canopyMat = new THREE.MeshStandardMaterial({ color: 0x244d29, roughness: 0.94, flatShading: true });
+        const canopyCount = MOBILE_RENDER_BUDGET ? 46 : 82;
+        const canopy = new THREE.InstancedMesh(canopyGeo, canopyMat, canopyCount);
+        const canopyDummy = new THREE.Object3D();
+        for (let i = 0; i < canopyCount; i++) {
+            const a = envRand() * Math.PI * 2;
+            const rr = WELL_RADIUS + 2.0 + envRand() * 7.5;
+            canopyDummy.position.set(Math.cos(a) * rr, WELL_HEIGHT + 1.0 + envRand() * 4.2, Math.sin(a) * rr);
+            canopyDummy.rotation.set(envRand()*Math.PI, envRand()*Math.PI, envRand()*Math.PI);
+            canopyDummy.scale.set(1.0 + envRand()*1.9, 0.45 + envRand()*0.9, 0.8 + envRand()*1.5);
+            canopyDummy.updateMatrix();
+            canopy.setMatrixAt(i, canopyDummy.matrix);
+        }
+        canopy.instanceMatrix.needsUpdate = true;
+        envRoot.add(canopy);
+
+        // Grassy world outside the well becomes visible near the final climb
+        const outerGroundMat = new THREE.MeshStandardMaterial({ color: 0x2c4c2b, roughness: 0.98, side: THREE.DoubleSide });
+        const outerGround = new THREE.Mesh(new THREE.RingGeometry(WELL_RADIUS + 0.55, 22, 48), outerGroundMat);
+        outerGround.rotation.x = -Math.PI / 2;
+        outerGround.position.y = WELL_HEIGHT + 0.02;
+        outerGround.receiveShadow = true;
+        envRoot.add(outerGround);
+
+        // Cheap low-poly grass tufts around the rim
+        const grassBladeMat = new THREE.MeshStandardMaterial({ color: 0x456c35, roughness: 1.0, side: THREE.DoubleSide });
+        const grassBladeGeo = new THREE.ConeGeometry(0.08, 0.48, 3);
+        for (let i = 0; i < 54; i++) {
+            const a = envRand() * Math.PI * 2;
+            const r = WELL_RADIUS + 0.75 + envRand() * 4.4;
+            const tuft = new THREE.Mesh(grassBladeGeo, grassBladeMat);
+            tuft.position.set(Math.cos(a) * r, WELL_HEIGHT + 0.25, Math.sin(a) * r);
+            tuft.rotation.z = (envRand() - 0.5) * 0.35;
+            tuft.rotation.y = a + envRand();
+            tuft.scale.setScalar(0.7 + envRand() * 1.25);
+            envRoot.add(tuft);
+        }
+
+        // STEP 3: SEMI-REALISTIC GROUNDWATER (2-Layer Scrolling PBR Normals + Dynamic Splash Ripples)
+        // -----------------------------------------------------------------------------------------
+        function generateWaterNormalTexture(size, isCapillary) {
+            const canvas = document.createElement('canvas');
+            canvas.width = canvas.height = size;
+            const ctx = canvas.getContext('2d');
+            const imgData = ctx.createImageData(size, size);
+            const data = imgData.data;
+
+            for (let y = 0; y < size; y++) {
+                const v = (y / size) * Math.PI * 2;
+                for (let x = 0; x < size; x++) {
+                    const u = (x / size) * Math.PI * 2;
+                    let dx, dy;
+                    if (!isCapillary) {
+                        // Layer 1: Broad rolling swells & gentle water current
+                        dx = Math.cos(u * 2 + v) * 0.45 + Math.cos(u * 3 - v * 2) * 0.35 + Math.sin(u * 4 + v * 3) * 0.20;
+                        dy = Math.sin(u + v * 2) * 0.45 - Math.sin(u * 2 - v * 3) * 0.35 + Math.cos(u * 3 + v * 4) * 0.20;
+                    } else {
+                        // Layer 2: Fine capillary ripples & micro-surface agitation
+                        dx = Math.cos(u * 5 - v * 4) * 0.50 + Math.sin(u * 8 + v * 6) * 0.35 + Math.cos(u * 11) * 0.25;
+                        dy = -Math.sin(u * 4 + v * 5) * 0.50 + Math.cos(u * 6 - v * 8) * 0.35 + Math.sin(v * 11) * 0.25;
+                    }
+                    const strength = isCapillary ? 1.4 : 1.1;
+                    const len = Math.hypot(dx * strength, dy * strength, 1.0);
+                    const idx = (y * size + x) * 4;
+                    data[idx]     = Math.floor(((-dx * strength / len) * 0.5 + 0.5) * 255);
+                    data[idx + 1] = Math.floor(((-dy * strength / len) * 0.5 + 0.5) * 255);
+                    data[idx + 2] = Math.floor(((1.0 / len) * 0.5 + 0.5) * 255);
+                    data[idx + 3] = 255;
+                }
+            }
+            ctx.putImageData(imgData, 0, 0);
+
+            const tex = new THREE.CanvasTexture(canvas);
+            tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+            tex.repeat.set(isCapillary ? 8 : 4, isCapillary ? 8 : 4);
+            return tex;
+        }
+
+        const waterNormal1 = generateWaterNormalTexture(256, false);
+        const waterNormal2 = generateWaterNormalTexture(256, true);
+
+        // Murky shallow silt waterbed
+        const waterBed = new THREE.Mesh(
+            new THREE.CircleGeometry(WELL_RADIUS - 0.08, 44),
+            new THREE.MeshStandardMaterial({ color: 0x051510, roughness: 1.0 })
+        );
+        waterBed.rotation.x = -Math.PI / 2;
+        waterBed.position.y = 0.055;
+        scene.add(waterBed);
+
+        // Layer 1: Semi-Realistic PBR groundwater with deep cyan/blue depth
+        const waterGeo = new THREE.CircleGeometry(WELL_RADIUS - 0.05, 52);
+        const waterMat = new THREE.MeshPhysicalMaterial({
+            color: 0x073931,
+            roughness: 0.16,
+            metalness: 0.03,
+            clearcoat: 0.88,
+            clearcoatRoughness: 0.12,
+            normalMap: waterNormal1,
+            normalScale: new THREE.Vector2(0.60, 0.60),
+            transparent: true,
+            opacity: 0.84,
+            emissive: 0x021611,
+            emissiveIntensity: 0.22
+        });
+        const waterMesh = new THREE.Mesh(waterGeo, waterMat);
+        waterMesh.rotation.x = -Math.PI / 2;
+        waterMesh.position.y = 0.20;
+        waterMesh.receiveShadow = true;
+        scene.add(waterMesh);
+
+        // Layer 2: Translucent micro-ripple surface sheen
+        const waterSheenMat = new THREE.MeshPhysicalMaterial({
+            color: 0x126558,
+            roughness: 0.22,
+            metalness: 0.0,
+            clearcoat: 0.70,
+            clearcoatRoughness: 0.16,
+            normalMap: waterNormal2,
+            normalScale: new THREE.Vector2(0.40, 0.40),
+            transparent: true,
+            opacity: 0.36,
+            depthWrite: false
+        });
+        const waterSheenMesh = new THREE.Mesh(waterGeo, waterSheenMat);
+        waterSheenMesh.rotation.x = -Math.PI / 2;
+        waterSheenMesh.position.y = 0.212;
+        scene.add(waterSheenMesh);
+
+        // Floating duckweed / algae patches sell the stagnant old-well look.
+        const algaeGeo = new THREE.CircleGeometry(0.18, 7);
+        const algaeMat = new THREE.MeshStandardMaterial({ color: 0x507f2d, roughness: 0.92, side: THREE.DoubleSide });
+        const algaeCount = MOBILE_RENDER_BUDGET ? 20 : 34;
+        const algae = new THREE.InstancedMesh(algaeGeo, algaeMat, algaeCount);
+        const algaeDummy = new THREE.Object3D();
+        for (let i = 0; i < algaeCount; i++) {
+            const a = envRand() * Math.PI * 2;
+            const rr = Math.sqrt(envRand()) * (WELL_RADIUS - 0.7);
+            algaeDummy.position.set(Math.cos(a)*rr, 0.228 + envRand()*0.008, Math.sin(a)*rr);
+            algaeDummy.rotation.set(-Math.PI/2, 0, envRand()*Math.PI);
+            const sc = 0.45 + envRand()*1.75;
+            algaeDummy.scale.set(sc * (0.65 + envRand()*0.7), sc, 1);
+            algaeDummy.updateMatrix();
+            algae.setMatrixAt(i, algaeDummy.matrix);
+        }
+        algae.instanceMatrix.needsUpdate = true;
+        scene.add(algae);
+
+        // Wet stones around the waterline frame the coconut without changing collision.
+        const bottomRockGeo = new THREE.DodecahedronGeometry(0.34, 0);
+        const bottomRockMat = new THREE.MeshStandardMaterial({ color: 0x243229, roughness: 0.58, metalness: 0.03, flatShading: true });
+        const bottomRockCount = MOBILE_RENDER_BUDGET ? 15 : 25;
+        const bottomRocks = new THREE.InstancedMesh(bottomRockGeo, bottomRockMat, bottomRockCount);
+        const bottomRockDummy = new THREE.Object3D();
+        for (let i = 0; i < bottomRockCount; i++) {
+            const a = envRand() * Math.PI * 2;
+            const rr = WELL_RADIUS - 0.62 - envRand() * 0.55;
+            bottomRockDummy.position.set(Math.cos(a)*rr, 0.24 + envRand()*0.16, Math.sin(a)*rr);
+            bottomRockDummy.rotation.set(envRand()*1.2, envRand()*Math.PI, envRand()*1.2);
+            bottomRockDummy.scale.set(0.75 + envRand()*1.7, 0.45 + envRand()*0.8, 0.7 + envRand()*1.5);
+            bottomRockDummy.updateMatrix();
+            bottomRocks.setMatrixAt(i, bottomRockDummy.matrix);
+        }
+        bottomRocks.instanceMatrix.needsUpdate = true;
+        bottomRocks.castShadow = true;
+        bottomRocks.receiveShadow = true;
+        scene.add(bottomRocks);
+
+        // Ambient gentle ripple rings around the coconut
+        const rippleGroup = new THREE.Group();
+        const rippleMatTemplate = new THREE.MeshBasicMaterial({
+            color: 0x72d6bc,
+            transparent: true,
+            opacity: 0.20,
+            side: THREE.DoubleSide,
+            depthWrite: false,
+            blending: THREE.AdditiveBlending
+        });
+        const waterRipples = [];
+        for (let i = 0; i < 3; i++) {
+            const ring = new THREE.Mesh(new THREE.RingGeometry(0.55, 0.63, 32), rippleMatTemplate.clone());
+            ring.rotation.x = -Math.PI / 2;
+            ring.position.y = 0.225 + i * 0.003;
+            ring.userData.phase = i / 3;
+            rippleGroup.add(ring);
+            waterRipples.push(ring);
+        }
+        scene.add(rippleGroup);
+
+        // Dynamic splash ripple ring pool (triggered on frog water impact)
+        const splashRingGeo = new THREE.RingGeometry(0.20, 0.34, 36);
+        const splashRingMatTemplate = new THREE.MeshBasicMaterial({
+            color: 0x8ef0d5,
+            transparent: true,
+            opacity: 0.0,
+            side: THREE.DoubleSide,
+            depthWrite: false,
+            blending: THREE.AdditiveBlending
+        });
+        const splashPool = [];
+        const splashPoolSize = 6;
+        for (let i = 0; i < splashPoolSize; i++) {
+            const mesh = new THREE.Mesh(splashRingGeo, splashRingMatTemplate.clone());
+            mesh.rotation.x = -Math.PI / 2;
+            mesh.position.y = 0.226;
+            mesh.visible = false;
+            scene.add(mesh);
+            splashPool.push({
+                mesh: mesh,
+                active: false,
+                startTime: 0,
+                delay: 0,
+                duration: 1.35,
+                maxScale: 6.0
+            });
+        }
+
+        // Dynamic splash droplets (leaping water particles)
+        const splashDropCount = 18;
+        const splashDropGeo = new THREE.BufferGeometry();
+        const splashDropPos = new Float32Array(splashDropCount * 3);
+        const splashDropVel = [];
+        for (let i = 0; i < splashDropCount; i++) {
+            splashDropPos[i * 3 + 1] = -100;
+            splashDropVel.push({ x: 0, y: 0, z: 0, life: 0 });
+        }
+        splashDropGeo.setAttribute('position', new THREE.BufferAttribute(splashDropPos, 3));
+        const splashDropMat = new THREE.PointsMaterial({
+            color: 0xb5ffea,
+            size: 0.085,
+            transparent: true,
+            opacity: 0.85,
+            depthWrite: false,
+            blending: THREE.AdditiveBlending
+        });
+        const splashDrops = new THREE.Points(splashDropGeo, splashDropMat);
+        scene.add(splashDrops);
+
+        function triggerWaterSplash(x, z, intensity = 1.0) {
+            const now = performance.now();
+            let ringsFired = 0;
+            for (let item of splashPool) {
+                if (!item.active && ringsFired < 2) {
+                    item.active = true;
+                    item.startTime = now;
+                    item.delay = ringsFired * 150;
+                    item.maxScale = (3.6 + ringsFired * 2.4) * Math.min(1.6, intensity);
+                    item.mesh.position.set(x, 0.224 + ringsFired * 0.002, z);
+                    item.mesh.scale.set(0.4, 0.4, 0.4);
+                    item.mesh.material.opacity = 0.58 / (1 + ringsFired * 0.4);
+                    item.mesh.visible = true;
+                    ringsFired++;
+                }
+            }
+
+            const dropCount = Math.floor(8 + Math.min(10, intensity * 6));
+            const posArray = splashDropGeo.attributes.position.array;
+            for (let i = 0; i < dropCount; i++) {
+                const angle = Math.random() * Math.PI * 2;
+                const speed = 0.7 + Math.random() * 1.6 * Math.min(1.6, intensity);
+                splashDropVel[i].x = Math.cos(angle) * speed;
+                splashDropVel[i].y = 1.5 + Math.random() * 2.2 * Math.min(1.6, intensity);
+                splashDropVel[i].z = Math.sin(angle) * speed;
+                splashDropVel[i].life = 0.55 + Math.random() * 0.35;
+                posArray[i * 3]     = x + (Math.random() - 0.5) * 0.22;
+                posArray[i * 3 + 1] = 0.25;
+                posArray[i * 3 + 2] = z + (Math.random() - 0.5) * 0.22;
+            }
+            splashDropGeo.attributes.position.needsUpdate = true;
+        }
+
+        // Fine airborne moisture catches the shaft light without expensive volumetrics
+        const mistCount = MOBILE_RENDER_BUDGET ? 72 : 120;
+        const mistGeo = new THREE.BufferGeometry();
+        const mistPositions = new Float32Array(mistCount * 3);
+        const mistBaseY = new Float32Array(mistCount);
+        for (let i = 0; i < mistCount; i++) {
+            const rad = Math.sqrt(envRand()) * (WELL_RADIUS - 0.55);
+            const ang = envRand() * Math.PI * 2;
+            mistPositions[i * 3] = Math.cos(ang) * rad;
+            mistBaseY[i] = 4 + envRand() * (WELL_HEIGHT - 5);
+            mistPositions[i * 3 + 1] = mistBaseY[i];
+            mistPositions[i * 3 + 2] = Math.sin(ang) * rad;
+        }
+        mistGeo.setAttribute('position', new THREE.BufferAttribute(mistPositions, 3));
+        const mistMat = new THREE.PointsMaterial({ color: 0xd8f0df, size: 0.055, transparent: true, opacity: 0.22, depthWrite: false, blending: THREE.AdditiveBlending });
+        const mist = new THREE.Points(mistGeo, mistMat);
+        scene.add(mist);
+
+        // Volumetric God Rays with soft vertical gradient falloff and golden sun motes
+        function applyShaftGradient(geo, topR, topG, topB, power = 1.85) {
+            const pos = geo.attributes.position;
+            const colors = new Float32Array(pos.count * 3);
+            let minY = Infinity, maxY = -Infinity;
+            for (let i = 0; i < pos.count; i++) {
+                const y = pos.getY(i);
+                if (y < minY) minY = y;
+                if (y > maxY) maxY = y;
+            }
+            const rangeY = (maxY - minY) || 1;
+            for (let i = 0; i < pos.count; i++) {
+                const y = pos.getY(i);
+                const t = Math.max(0, Math.min(1, (y - minY) / rangeY));
+                const factor = Math.pow(t, power);
+                colors[i * 3]     = topR * factor;
+                colors[i * 3 + 1] = topG * factor;
+                colors[i * 3 + 2] = topB * factor;
+            }
+            geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+        }
+
+        const godRayGroup = new THREE.Group();
+
+        // 1. Outer volumetric cone (broad soft light envelope)
+        const rayGeo = new THREE.CylinderGeometry(WELL_RADIUS * 0.62, WELL_RADIUS * 0.96, WELL_HEIGHT * 0.70, 24, 8, true);
+        applyShaftGradient(rayGeo, 0.98, 0.91, 0.72, 1.85);
+        const rayMat = new THREE.MeshBasicMaterial({
+            vertexColors: true,
+            color: 0xffffff,
+            transparent: true,
+            opacity: 0.18,
+            side: THREE.DoubleSide,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false
+        });
+        const godRay = new THREE.Mesh(rayGeo, rayMat);
+        godRay.position.set(0.5, WELL_HEIGHT - (WELL_HEIGHT * 0.33), 0.3);
+        godRayGroup.add(godRay);
+
+        // 2. Inner core beam (focused, brighter sunbeam)
+        const rayGeoInner = new THREE.CylinderGeometry(WELL_RADIUS * 0.28, WELL_RADIUS * 0.58, WELL_HEIGHT * 0.56, 16, 8, true);
+        applyShaftGradient(rayGeoInner, 1.0, 0.96, 0.82, 2.2);
+        const rayMatInner = new THREE.MeshBasicMaterial({
+            vertexColors: true,
+            color: 0xffffff,
+            transparent: true,
+            opacity: 0.12,
+            side: THREE.DoubleSide,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false
+        });
+        const innerRay = new THREE.Mesh(rayGeoInner, rayMatInner);
+        innerRay.position.set(1.0, WELL_HEIGHT * 0.74, -0.6);
+        innerRay.rotation.z = -0.04;
+        godRayGroup.add(innerRay);
+
+        // 3. Angled side beam
+        const rayGeoSide = new THREE.CylinderGeometry(WELL_RADIUS * 0.16, WELL_RADIUS * 0.40, WELL_HEIGHT * 0.48, 14, 8, true);
+        applyShaftGradient(rayGeoSide, 0.94, 0.88, 0.68, 2.0);
+        const rayMatSide = new THREE.MeshBasicMaterial({
+            vertexColors: true,
+            color: 0xffffff,
+            transparent: true,
+            opacity: 0.08,
+            side: THREE.DoubleSide,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false
+        });
+        const sideRay = new THREE.Mesh(rayGeoSide, rayMatSide);
+        sideRay.position.set(-1.4, WELL_HEIGHT * 0.77, 0.9);
+        sideRay.rotation.z = 0.06;
+        godRayGroup.add(sideRay);
+
+        // 4. Golden sun motes catching the beam inside the upper shaft (Y: 32..64)
+        const moteCount = MOBILE_RENDER_BUDGET ? 24 : 40;
+        const moteGeo = new THREE.BufferGeometry();
+        const motePositions = new Float32Array(moteCount * 3);
+        const moteBaseY = new Float32Array(moteCount);
+        const moteSpeed = new Float32Array(moteCount);
+        for (let i = 0; i < moteCount; i++) {
+            const rad = Math.sqrt(envRand()) * (WELL_RADIUS * 0.55);
+            const ang = envRand() * Math.PI * 2;
+            motePositions[i * 3]     = Math.cos(ang) * rad + 0.5;
+            moteBaseY[i]             = 32 + envRand() * 31;
+            motePositions[i * 3 + 1] = moteBaseY[i];
+            motePositions[i * 3 + 2] = Math.sin(ang) * rad + 0.3;
+            moteSpeed[i]             = 0.4 + envRand() * 0.8;
+        }
+        moteGeo.setAttribute('position', new THREE.BufferAttribute(motePositions, 3));
+        const moteMat = new THREE.PointsMaterial({
+            color: 0xffeaad,
+            size: MOBILE_RENDER_BUDGET ? 0.08 : 0.10,
+            transparent: true,
+            opacity: 0.55,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false
+        });
+        const sunMotes = new THREE.Points(moteGeo, moteMat);
+        godRayGroup.add(sunMotes);
+
+        scene.add(godRayGroup);
+
+        // Moss-dark stone rim instead of a bright toy-like green ring.
+        // Individual rim stones above provide the irregular silhouette from the reference image.
+
+        // Green grassy rim at the top of the well
+        const rimGeo = new THREE.TorusGeometry(WELL_RADIUS + 0.3, 0.7, 12, 36);
+        const rimMat = new THREE.MeshStandardMaterial({ color: 0x344a39, roughness: 0.93, metalness: 0.0 });
+        const rimMesh = new THREE.Mesh(rimGeo, rimMat);
+        rimMesh.rotation.x = Math.PI / 2;
+        rimMesh.position.y = WELL_HEIGHT;
+        scene.add(rimMesh);
+
+        // Ambient floating fireflies
+        const fireflyCount = MOBILE_RENDER_BUDGET ? 44 : 72;
+        const fireflyGeo = new THREE.BufferGeometry();
+        const fireflyPositions = new Float32Array(fireflyCount * 3);
+        const fireflyBaseY = new Float32Array(fireflyCount);
+        for (let i = 0; i < fireflyCount; i++) {
+            const rad = envRand() * (WELL_RADIUS - 1.2);
+            const ang = envRand() * Math.PI * 2;
+            fireflyPositions[i * 3] = Math.cos(ang) * rad;
+            fireflyBaseY[i] = envRand() * (WELL_HEIGHT - 2) + 1;
+            fireflyPositions[i * 3 + 1] = fireflyBaseY[i];
+            fireflyPositions[i * 3 + 2] = Math.sin(ang) * rad;
+        }
+        fireflyGeo.setAttribute('position', new THREE.BufferAttribute(fireflyPositions, 3));
+        const fireflyMat = new THREE.PointsMaterial({
+            color: 0x93f5b0,
+            size: 0.28,
+            transparent: true,
+            opacity: 0.85,
+            blending: THREE.AdditiveBlending
+        });
+        const fireflies = new THREE.Points(fireflyGeo, fireflyMat);
+        scene.add(fireflies);
+
+        // Platforms setup
+        const platforms = [];
+        platforms.push({
+            pos: new THREE.Vector3(0, 0.45, 0),
+            radius: 1.45,
+            height: 0.5,
+            isCoconut: true
+        });
+
+        const platformTypes = ['stone', 'wood', 'mushroom'];
+        const totalSteps = 27;
+        let currentAngle = 0.35;
+
+        for (let i = 1; i <= totalSteps; i++) {
+            const progress = i / totalSteps;
+            const y = 2.4 + progress * (WELL_HEIGHT - 5.0);
+            const dist = WELL_RADIUS - 1.8 - (Math.sin(i * 1.5) * 0.3);
+            currentAngle += 1.35;
+
+            const x = Math.cos(currentAngle) * dist;
+            const z = Math.sin(currentAngle) * dist;
+
+            const pGroup = new THREE.Group();
+            const rad = 1.35 - (progress * 0.22);
+            const type = platformTypes[i % platformTypes.length];
+
+            let pMesh;
+            if (type === 'mushroom') {
+                const capGeo = new THREE.CylinderGeometry(rad, rad * 0.8, 0.42, 14);
+                const capMat = new THREE.MeshStandardMaterial({ color: 0x8f4837, roughness: 0.72, flatShading: true });
+                pMesh = new THREE.Mesh(capGeo, capMat);
+            } else if (type === 'wood') {
+                const woodGeo = new THREE.BoxGeometry(rad * 2.1, 0.4, rad * 1.4);
+                const woodMat = new THREE.MeshStandardMaterial({ color: 0x533722, roughness: 0.92, flatShading: true });
+                pMesh = new THREE.Mesh(woodGeo, woodMat);
+                pMesh.rotation.y = -currentAngle;
+            } else {
+                const stoneGeo = new THREE.CylinderGeometry(rad * 1.05, rad * 1.25, 0.5, 12);
+                const stoneMat = new THREE.MeshStandardMaterial({ color: 0x435047, roughness: 0.91, flatShading: true });
+                pMesh = new THREE.Mesh(stoneGeo, stoneMat);
+            }
+
+            pMesh.castShadow = true;
+            pMesh.receiveShadow = true;
+            pGroup.add(pMesh);
+
+            // Tiny visual accents help each landing read as part of the damp well biome
+            if (i % 3 !== 0) {
+                const accentMat = new THREE.MeshStandardMaterial({ color: i % 2 ? 0x315c31 : 0x6b7b4a, roughness: 1.0, flatShading: true });
+                const accent = new THREE.Mesh(new THREE.IcosahedronGeometry(0.09 + envRand() * 0.09, 0), accentMat);
+                accent.position.set((envRand() - 0.5) * rad * 0.85, 0.30, (envRand() - 0.5) * rad * 0.55);
+                accent.scale.y = 0.55;
+                pGroup.add(accent);
+            }
+
+            pGroup.position.set(x, y, z);
+            scene.add(pGroup);
+
+            platforms.push({
+                pos: new THREE.Vector3(x, y, z),
+                radius: rad + 0.38,
+                height: 0.5
+            });
+        }
+
+        // Final Exit Platform at the Top of the well
+        platforms.push({
+            pos: new THREE.Vector3(0, WELL_HEIGHT, 0),
+            radius: WELL_RADIUS * 1.1,
+            height: 1.0,
+            isTopExit: true
+        });
+
+        // The Coconut Shell (Spawn Platform at bottom)
+        const coconutGroup = new THREE.Group();
+        const shellMat = new THREE.MeshStandardMaterial({
+            map: generateCoconutTexture(),
+            roughness: 0.9,
+            side: THREE.DoubleSide
+        });
+        const shellGeo = new THREE.SphereGeometry(1.6, 24, 16, 0, Math.PI * 2, 0, Math.PI / 1.7);
+        const shellMesh = new THREE.Mesh(shellGeo, shellMat);
+        shellMesh.rotation.x = Math.PI;
+        shellMesh.position.y = 1.0;
+        shellMesh.castShadow = true;
+        shellMesh.receiveShadow = true;
+        coconutGroup.add(shellMesh);
+
+        // Coconut White Pulp Layer
+        const pulpGeo = new THREE.SphereGeometry(1.52, 24, 16, 0, Math.PI * 2, 0, Math.PI / 1.75);
+        const pulpMat = new THREE.MeshStandardMaterial({ color: 0xf3ede2, roughness: 0.5, side: THREE.DoubleSide });
+        const pulpMesh = new THREE.Mesh(pulpGeo, pulpMat);
+        pulpMesh.rotation.x = Math.PI;
+        pulpMesh.position.y = 0.98;
+        coconutGroup.add(pulpMesh);
+        scene.add(coconutGroup);
+
+        /*
+           Constructing the Crouched Voxel Sitting Frog exactly matching image (27763.jpg):
+           - Authentic frog sitting crouch posture with front feet on ground and bent hind legs hugging the flanks
+           - Crisp black cel-shaded voxel outlines (EdgesGeometry) matching the cartoon aesthetic
+           - Square eyes atop head with square black pupils and specular catchlights
+           - Prominent bright yellow lower jaw bar and angled yellow chest/belly plate
+           - Dynamic leg animation: crouches to compress for jump, extends legs in mid-air leap, and lands into crouch
+        */
+        const frog = new THREE.Group();
+        const frogAnimRoot = new THREE.Group();
+        frog.add(frogAnimRoot);
+
+        // Cel-shaded Outline Material & Voxel Shading Materials
+        const outlineLineMat = new THREE.LineBasicMaterial({ color: 0x14240e, linewidth: 2 });
+
+        function createVoxelBoxMesh(geo, mat, hasOutline = true) {
+            const mesh = new THREE.Mesh(geo, mat);
+            mesh.castShadow = true;
+            mesh.receiveShadow = true;
+            if (hasOutline) {
+                const edges = new THREE.EdgesGeometry(geo);
+                const line = new THREE.LineSegments(edges, outlineLineMat);
+                mesh.add(line);
+            }
+            return mesh;
+        }
+
+        // Palette matching 27763.jpg
+        const frogGreenMat = new THREE.MeshStandardMaterial({
+            color: 0x6dc72c, // Vibrant lime green
+            roughness: 0.38,
+            metalness: 0.05
+        });
+
+        const frogDarkGreenMat = new THREE.MeshStandardMaterial({
+            color: 0x58aa22,
+            roughness: 0.42
+        });
+
+        const frogYellowMat = new THREE.MeshStandardMaterial({
+            color: 0xfbcc22, // Rich bright yellow
+            roughness: 0.38,
+            metalness: 0.05
+        });
+
+        const eyeWhiteMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+        const eyeBlackMat = new THREE.MeshBasicMaterial({ color: 0x151515 });
+
+        // 1. Torso & Hunched Back Group
+        const torsoGroup = new THREE.Group();
+
+        // Main body core (slanted slightly in a crouched resting position)
+        const mainBodyGeo = new THREE.BoxGeometry(0.52, 0.42, 0.48);
+        const mainBody = createVoxelBoxMesh(mainBodyGeo, frogGreenMat);
+        mainBody.position.set(0, 0.28, -0.04);
+        torsoGroup.add(mainBody);
+
+        // Hunched spine / stepped back box (visible behind head in 27763.jpg)
+        const hunchedBackGeo = new THREE.BoxGeometry(0.44, 0.26, 0.28);
+        const hunchedBack = createVoxelBoxMesh(hunchedBackGeo, frogGreenMat);
+        hunchedBack.position.set(0, 0.38, -0.16);
+        torsoGroup.add(hunchedBack);
+
+        // Bright Yellow Chest/Belly panel between the two front legs (matching 27763.jpg)
+        const bellyGroup = new THREE.Group();
+        const bellyPlateGeo = new THREE.BoxGeometry(0.38, 0.32, 0.06);
+        const bellyPlate = createVoxelBoxMesh(bellyPlateGeo, frogYellowMat);
+        bellyPlate.position.set(0, 0.25, 0.22);
+        bellyPlate.rotation.x = -0.12;
+        bellyGroup.add(bellyPlate);
+        torsoGroup.add(bellyGroup);
+
+        frogAnimRoot.add(torsoGroup);
+
+        // 2. Head Group
+        const headGroup = new THREE.Group();
+        headGroup.position.set(0, 0.44, 0.08);
+
+        // Main green upper head block
+        const headUpperGeo = new THREE.BoxGeometry(0.56, 0.22, 0.44);
+        const headUpper = createVoxelBoxMesh(headUpperGeo, frogGreenMat);
+        headUpper.position.set(0, 0.11, 0.02);
+        headGroup.add(headUpper);
+
+        // Upper snout ridge
+        const snoutUpperGeo = new THREE.BoxGeometry(0.56, 0.10, 0.16);
+        const snoutUpper = createVoxelBoxMesh(snoutUpperGeo, frogGreenMat);
+        snoutUpper.position.set(0, 0.06, 0.26);
+        headGroup.add(snoutUpper);
+
+        // Wide bright yellow lower jaw block spanning front mouth (exact feature from 27763.jpg)
+        const lowerJawGeo = new THREE.BoxGeometry(0.56, 0.15, 0.36);
+        const lowerJaw = createVoxelBoxMesh(lowerJawGeo, frogYellowMat);
+        lowerJaw.position.set(0, -0.06, 0.14);
+        headGroup.add(lowerJaw);
+
+        // Two Square Eye Towers with notch in between
+        function createVoxelEye(xPos) {
+            const eyeGroup = new THREE.Group();
+
+            // Green cube tower
+            const towerGeo = new THREE.BoxGeometry(0.20, 0.22, 0.22);
+            const tower = createVoxelBoxMesh(towerGeo, frogGreenMat);
+            tower.position.set(0, 0.11, 0);
+            eyeGroup.add(tower);
+
+            // Front square white eyeball plate
+            const whiteGeo = new THREE.BoxGeometry(0.16, 0.16, 0.02);
+            const eyeWhite = new THREE.Mesh(whiteGeo, eyeWhiteMat);
+            eyeWhite.position.set(0, 0.11, 0.115);
+            eyeGroup.add(eyeWhite);
+
+            // Square black pupil
+            const pupilGeo = new THREE.BoxGeometry(0.10, 0.10, 0.02);
+            const pupil = new THREE.Mesh(pupilGeo, eyeBlackMat);
+            pupil.position.set(xPos < 0 ? -0.01 : 0.01, 0.11, 0.125);
+            eyeGroup.add(pupil);
+
+            // Specular white catchlight dot (upper corner matching 27763.jpg)
+            const catchlightGeo = new THREE.BoxGeometry(0.035, 0.035, 0.02);
+            const catchlight = new THREE.Mesh(catchlightGeo, eyeWhiteMat);
+            catchlight.position.set(xPos < 0 ? 0.02 : 0.035, 0.135, 0.135);
+            eyeGroup.add(catchlight);
+
+            eyeGroup.position.set(xPos, 0.22, 0.05);
+            return eyeGroup;
+        }
+
+        const eyeL = createVoxelEye(-0.17);
+        const eyeR = createVoxelEye(0.17);
+        headGroup.add(eyeL);
+        headGroup.add(eyeR);
+        frogAnimRoot.add(headGroup);
+
+        // 3. Front Forelimbs (Standing vertically on ground in front of yellow belly)
+        function createFrontForeleg(isLeft) {
+            const legGroup = new THREE.Group();
+            const sign = isLeft ? -1 : 1;
+
+            // Vertical front arm bone
+            const armGeo = new THREE.BoxGeometry(0.10, 0.32, 0.10);
+            const arm = createVoxelBoxMesh(armGeo, frogGreenMat);
+            arm.position.set(0, -0.16, 0);
+            legGroup.add(arm);
+
+            // Front foot with 3 splayed flat toes resting on the floor
+            const footGroup = new THREE.Group();
+            footGroup.position.set(0, -0.32, 0.04);
+
+            // Center toe
+            const centerToeGeo = new THREE.BoxGeometry(0.045, 0.045, 0.12);
+            const centerToe = createVoxelBoxMesh(centerToeGeo, frogGreenMat);
+            centerToe.position.set(0, 0.022, 0.06);
+            footGroup.add(centerToe);
+
+            // Inner toe
+            const innerToeGeo = new THREE.BoxGeometry(0.042, 0.042, 0.10);
+            const innerToe = createVoxelBoxMesh(innerToeGeo, frogDarkGreenMat);
+            innerToe.position.set(-sign * 0.048, 0.021, 0.045);
+            innerToe.rotation.y = -sign * 0.32;
+            footGroup.add(innerToe);
+
+            // Outer toe
+            const outerToeGeo = new THREE.BoxGeometry(0.042, 0.042, 0.10);
+            const outerToe = createVoxelBoxMesh(outerToeGeo, frogDarkGreenMat);
+            outerToe.position.set(sign * 0.048, 0.021, 0.045);
+            outerToe.rotation.y = sign * 0.36;
+            footGroup.add(outerToe);
+
+            legGroup.add(footGroup);
+            legGroup.position.set(sign * 0.22, 0.34, 0.20);
+            return legGroup;
+        }
+
+        const frontLegL = createFrontForeleg(true);
+        const frontLegR = createFrontForeleg(false);
+        frogAnimRoot.add(frontLegL);
+        frogAnimRoot.add(frontLegR);
+
+        // 4. Rear Crouched Hindlegs (Z-folded tightly along the flanks matching 27763.jpg)
+        function createCrouchedHindleg(isLeft) {
+            const legGroup = new THREE.Group();
+            const sign = isLeft ? -1 : 1;
+
+            // Folded thigh/knee block (raised high on flank)
+            const thighGeo = new THREE.BoxGeometry(0.14, 0.26, 0.28);
+            const thigh = createVoxelBoxMesh(thighGeo, frogGreenMat);
+            thigh.position.set(sign * 0.02, 0.06, -0.04);
+            thigh.rotation.z = sign * -0.12;
+            legGroup.add(thigh);
+
+            // Lower shin folded down to ground
+            const shinGeo = new THREE.BoxGeometry(0.12, 0.18, 0.18);
+            const shin = createVoxelBoxMesh(shinGeo, frogDarkGreenMat);
+            shin.position.set(sign * 0.04, -0.12, 0.02);
+            legGroup.add(shin);
+
+            // Long flat hind foot resting on the floor with 3 toes pointing forward
+            const hindFootGroup = new THREE.Group();
+            hindFootGroup.position.set(sign * 0.04, -0.22, 0.08);
+
+            for (let t = -1; t <= 1; t++) {
+                const toeGeo = new THREE.BoxGeometry(0.045, 0.045, 0.13 - Math.abs(t) * 0.02);
+                const toe = createVoxelBoxMesh(toeGeo, frogGreenMat);
+                toe.position.set(t * 0.046, 0.022, 0.065);
+                toe.rotation.y = sign * (t * 0.18 + 0.12);
+                hindFootGroup.add(toe);
+            }
+            legGroup.add(hindFootGroup);
+
+            legGroup.position.set(sign * 0.32, 0.24, -0.06);
+            return legGroup;
+        }
+
+        const hindLegL = createCrouchedHindleg(true);
+        const hindLegR = createCrouchedHindleg(false);
+        frogAnimRoot.add(hindLegL);
+        frogAnimRoot.add(hindLegR);
+
+        // Direction Indicator Arrow at Frog's feet for clear aiming
+        const arrowGroup = new THREE.Group();
+        const arrowShaftGeo = new THREE.ConeGeometry(0.22, 0.65, 4);
+        const arrowMat = new THREE.MeshBasicMaterial({ color: 0x38ef7d, transparent: true, opacity: 0.85 });
+        const arrowMesh = new THREE.Mesh(arrowShaftGeo, arrowMat);
+        arrowMesh.rotation.x = Math.PI / 2;
+        arrowMesh.position.set(0, 0.08, 0.85);
+        arrowGroup.add(arrowMesh);
+        frog.add(arrowGroup);
+
+        frog.position.set(0, 0.45, 0);
+        scene.add(frog);
+
+        const TRAJ_COUNT = 18;
+        const trajSpheres = [];
+        const trajGroup = new THREE.Group();
+        const trajDotGeo = new THREE.SphereGeometry(0.11, 8, 8);
+        const trajDotMat = new THREE.MeshBasicMaterial({ color: 0x38ef7d, transparent: true, opacity: 0.85 });
+
+        for (let i = 0; i < TRAJ_COUNT; i++) {
+            const dot = new THREE.Mesh(trajDotGeo, trajDotMat.clone());
+            const scale = 1.0 - (i / TRAJ_COUNT) * 0.45;
+            dot.scale.set(scale, scale, scale);
+            dot.visible = false;
+            trajSpheres.push(dot);
+            trajGroup.add(dot);
+        }
+        scene.add(trajGroup);
+
+        // Physics & Game States
+        const physics = {
+            pos: new THREE.Vector3(0, 0.45, 0),
+            vel: new THREE.Vector3(0, 0, 0),
+            facingAngle: 0,
+            onGround: true,
+            charging: false,
+            chargePower: 0,
+            jumpCount: 0,
+            reachedWellTop: false
+        };
+
+        const GRAVITY = 26.0;
+        const MAX_JUMP_FORCE = 18.5;
+        const MIN_JUMP_FORCE = 6.2;
+
+        const storyMilestones = {
+            firstJump: false,
+            quarter: false,
+            halfway: false,
+            nearTop: false
+        };
+
+        // DOM Elements
+        const storyBubble = document.getElementById('story-bubble');
+        const storyText = document.getElementById('story-text');
+        const storyBubbleContainer = document.getElementById('story-bubble-container');
+        const btnCloseStory = document.getElementById('btn-close-story');
+        const altitudeText = document.getElementById('altitude-text');
+        const altitudeProgress = document.getElementById('altitude-progress');
+        const chargeContainer = document.getElementById('charge-container');
+        const chargeBar = document.getElementById('charge-bar');
+        const chargePercent = document.getElementById('charge-percent');
+
+        let storyTimeout = null;
+
+        function closeStory() {
+            if (storyBubbleContainer) {
+                storyBubbleContainer.classList.add('bubble-hidden');
+            }
+            if (storyTimeout) {
+                clearTimeout(storyTimeout);
+                storyTimeout = null;
+            }
+        }
+
+        function triggerSpeech(msg, autoHideSec = 3.8) {
+            storyText.innerHTML = `"${msg}"`;
+            storyBubbleContainer.classList.remove('bubble-hidden');
+            storyBubble.classList.remove('bubble-pop');
+            void storyBubble.offsetWidth;
+            storyBubble.classList.add('bubble-pop');
+            frogAudio.playCroak();
+
+            if (storyTimeout) clearTimeout(storyTimeout);
+            if (autoHideSec > 0) {
+                storyTimeout = setTimeout(() => {
+                    closeStory();
+                }, autoHideSec * 1000);
+            }
+        }
+
+        if (btnCloseStory) {
+            btnCloseStory.addEventListener('click', (e) => {
+                e.stopPropagation();
+                closeStory();
+            });
+        }
+        if (storyBubble) {
+            storyBubble.addEventListener('click', closeStory);
+        }
+
+        // Auto hide intro bubble after 4.5s
+        storyTimeout = setTimeout(closeStory, 4500);
+
+        function checkAltitudeTriggers(y) {
+            if (!storyMilestones.firstJump && y > 1.8) {
+                storyMilestones.firstJump = true;
+                triggerSpeech("ว้าววว! นอกกะลามันสว่างขนาดนี้เลยเหรอ!? ...เดี๋ยวนะ นี่มันแค่ก้นบ่อน้ำเองนี่หว่า!?");
+            } else if (!storyMilestones.quarter && y > 16.0) {
+                storyMilestones.quarter = true;
+                triggerSpeech("โอ้โห บ่อนี้มันจะลึกไปไหนเนี่ย เริ่มเห็นแสงข้างบนแล้ว!");
+            } else if (!storyMilestones.halfway && y > 32.0) {
+                storyMilestones.halfway = true;
+                triggerSpeech("มาได้ครึ่งทางแล้ว! กะลาใบเดิมก้นบ่อเหลืออันจิ๋วเดียวเอง!");
+            } else if (!storyMilestones.nearTop && y > 52.0) {
+                storyMilestones.nearTop = true;
+                triggerSpeech("ได้กลิ่นสายลมกับทุ่งหญ้าแล้ว! อีกนิดเดียวกระโดดข้ามขอบบ่อเลย!");
+            }
+        }
+
+        /*
+           Camera Setup:
+           Allowing free camera rotation through the wall without restriction,
+           while maintaining a clear, cutaway view of the frog at all times.
+        */
+        let isDraggingCam = false;
+        let prevMouseX = 0;
+        let prevMouseY = 0;
+        let camTheta = 0;
+        let camPhi = 0.32;
+        let camDistance = 5.8;
+
+        // Desktop mouse drag
+        window.addEventListener('mousedown', (e) => {
+            if (e.target.tagName !== 'BUTTON' && !e.target.closest('button')) {
+                isDraggingCam = true;
+                prevMouseX = e.clientX;
+                prevMouseY = e.clientY;
+            }
+        });
+
+        window.addEventListener('mousemove', (e) => {
+            if (isDraggingCam) {
+                const dx = e.clientX - prevMouseX;
+                const dy = e.clientY - prevMouseY;
+                prevMouseX = e.clientX;
+                prevMouseY = e.clientY;
+                camTheta -= dx * 0.007;
+                camPhi = Math.max(0.05, Math.min(1.35, camPhi + dy * 0.006));
+            }
+        });
+
+        window.addEventListener('mouseup', () => { isDraggingCam = false; });
+
+        // Desktop mouse wheel zoom to inspect PBR wall close-up
+        window.addEventListener('wheel', (e) => {
+            camDistance = Math.max(2.2, Math.min(14.0, camDistance + e.deltaY * 0.005));
+        }, { passive: true });
+
+        // Mobile touch drag to orbit camera freely + 2-finger pinch zoom
+        let touchCamStartX = 0;
+        let touchCamStartY = 0;
+        let isTouchCamActive = false;
+        let initialPinchDist = 0;
+        let initialPinchCamDist = camDistance;
+
+        container.addEventListener('touchstart', (e) => {
+            if (e.touches.length === 1) {
+                isTouchCamActive = true;
+                touchCamStartX = e.touches[0].clientX;
+                touchCamStartY = e.touches[0].clientY;
+            } else if (e.touches.length === 2) {
+                isTouchCamActive = false;
+                const dx = e.touches[0].clientX - e.touches[1].clientX;
+                const dy = e.touches[0].clientY - e.touches[1].clientY;
+                initialPinchDist = Math.hypot(dx, dy);
+                initialPinchCamDist = camDistance;
+            }
+        }, { passive: true });
+
+        container.addEventListener('touchmove', (e) => {
+            if (isTouchCamActive && e.touches.length === 1) {
+                const dx = e.touches[0].clientX - touchCamStartX;
+                const dy = e.touches[0].clientY - touchCamStartY;
+                touchCamStartX = e.touches[0].clientX;
+                touchCamStartY = e.touches[0].clientY;
+                camTheta -= dx * 0.008;
+                camPhi = Math.max(0.05, Math.min(1.35, camPhi + dy * 0.006));
+            } else if (e.touches.length === 2 && initialPinchDist > 0) {
+                const dx = e.touches[0].clientX - e.touches[1].clientX;
+                const dy = e.touches[0].clientY - e.touches[1].clientY;
+                const currentDist = Math.hypot(dx, dy);
+                const factor = initialPinchDist / Math.max(10, currentDist);
+                camDistance = Math.max(2.2, Math.min(14.0, initialPinchCamDist * factor));
+            }
+        }, { passive: true });
+
+        container.addEventListener('touchend', () => {
+            isTouchCamActive = false;
+            initialPinchDist = 0;
+        });
+
+        // Camera Reset Button (snaps camera directly behind the frog)
+        document.getElementById('btn-cam-reset').addEventListener('click', () => {
+            camTheta = physics.facingAngle + Math.PI;
+            camPhi = 0.32;
+            if (navigator.vibrate) navigator.vibrate(20);
+        });
+
+        let steerDirection = 0; // -1: right, 1: left
+        const btnTurnLeft = document.getElementById('btn-turn-left');
+        const btnTurnRight = document.getElementById('btn-turn-right');
+
+        function startTurnLeft(e) {
+            if (e) e.preventDefault();
+            steerDirection = 1;
+            btnTurnLeft.classList.add('bg-emerald-600', 'scale-95');
+        }
+        function stopTurnLeft() {
+            if (steerDirection === 1) steerDirection = 0;
+            btnTurnLeft.classList.remove('bg-emerald-600', 'scale-95');
+        }
+
+        function startTurnRight(e) {
+            if (e) e.preventDefault();
+            steerDirection = -1;
+            btnTurnRight.classList.add('bg-emerald-600', 'scale-95');
+        }
+        function stopTurnRight() {
+            if (steerDirection === -1) steerDirection = 0;
+            btnTurnRight.classList.remove('bg-emerald-600', 'scale-95');
+        }
+
+        // Left Turn bindings
+        btnTurnLeft.addEventListener('touchstart', startTurnLeft, { passive: false });
+        btnTurnLeft.addEventListener('touchend', stopTurnLeft);
+        btnTurnLeft.addEventListener('mousedown', startTurnLeft);
+        btnTurnLeft.addEventListener('mouseup', stopTurnLeft);
+        btnTurnLeft.addEventListener('mouseleave', stopTurnLeft);
+
+        // Right Turn bindings
+        btnTurnRight.addEventListener('touchstart', startTurnRight, { passive: false });
+        btnTurnRight.addEventListener('touchend', stopTurnRight);
+        btnTurnRight.addEventListener('mousedown', startTurnRight);
+        btnTurnRight.addEventListener('mouseup', stopTurnRight);
+        btnTurnRight.addEventListener('mouseleave', stopTurnRight);
+
+        // Keyboard Controls
+        const keys = {};
+        window.addEventListener('keydown', (e) => {
+            keys[e.code] = true;
+            if (e.code === 'Space') {
+                e.preventDefault();
+                startChargingJump();
+            }
+            if (e.code === 'KeyR') resetToBottom();
+        });
+
+        window.addEventListener('keyup', (e) => {
+            keys[e.code] = false;
+            if (e.code === 'Space') {
+                e.preventDefault();
+                releaseChargingJump();
+            }
+        });
+
+        // Jump Button Event Handlers
+        const btnJump = document.getElementById('btn-jump-action');
+        btnJump.addEventListener('mousedown', (e) => { e.preventDefault(); startChargingJump(); });
+        window.addEventListener('mouseup', () => { if (physics.charging) releaseChargingJump(); });
+        btnJump.addEventListener('touchstart', (e) => { e.preventDefault(); startChargingJump(); }, { passive: false });
+        btnJump.addEventListener('touchend', (e) => { e.preventDefault(); releaseChargingJump(); });
+
+        function startChargingJump() {
+            if (!physics.onGround || physics.charging || physics.reachedWellTop) return;
+            physics.charging = true;
+            physics.chargePower = 0.05;
+            chargeContainer.classList.remove('opacity-30');
+            chargeContainer.classList.add('opacity-100');
+            trajSpheres.forEach(dot => { dot.visible = true; });
+            if (navigator.vibrate) navigator.vibrate(25);
+        }
+
+        function releaseChargingJump() {
+            if (!physics.charging) return;
+            physics.charging = false;
+            chargeContainer.classList.remove('opacity-100');
+            chargeContainer.classList.add('opacity-30');
+            trajSpheres.forEach(dot => { dot.visible = false; });
+
+            const finalPower = Math.max(0.15, physics.chargePower);
+            const totalSpeed = MIN_JUMP_FORCE + finalPower * (MAX_JUMP_FORCE - MIN_JUMP_FORCE);
+
+            const jumpDir = new THREE.Vector3(
+                Math.sin(physics.facingAngle),
+                1.38,
+                Math.cos(physics.facingAngle)
+            ).normalize();
+
+            physics.vel.copy(jumpDir.multiplyScalar(totalSpeed));
+            physics.onGround = false;
+            physics.jumpCount++;
+
+            frogAudio.playJump(finalPower);
+            if (navigator.vibrate) navigator.vibrate(40);
+
+            physics.chargePower = 0;
+            chargeBar.style.width = '0%';
+            chargePercent.innerText = '0%';
+        }
+
+        function updateTrajectoryLine() {
+            if (!physics.charging || !physics.onGround) return;
+            const simPos = physics.pos.clone().add(new THREE.Vector3(0, 0.45, 0));
+            const currentSpeed = MIN_JUMP_FORCE + physics.chargePower * (MAX_JUMP_FORCE - MIN_JUMP_FORCE);
+            const simVel = new THREE.Vector3(
+                Math.sin(physics.facingAngle),
+                1.38,
+                Math.cos(physics.facingAngle)
+            ).normalize().multiplyScalar(currentSpeed);
+
+            const dt = 0.052;
+            for (let i = 0; i < TRAJ_COUNT; i++) {
+                trajSpheres[i].position.copy(simPos);
+                simPos.addScaledVector(simVel, dt);
+                simVel.y -= GRAVITY * dt;
+            }
+        }
+
+        function updatePhysics(dt) {
+            // Turning Speed
+            const turnSpeed = 3.4;
+            if (keys['KeyA'] || keys['ArrowLeft'] || steerDirection === 1) physics.facingAngle += turnSpeed * dt;
+            if (keys['KeyD'] || keys['ArrowRight'] || steerDirection === -1) physics.facingAngle -= turnSpeed * dt;
+
+            // Voxel Frog Crouched Animation Controller
+            const nowMs = performance.now();
+
+            if (physics.charging) {
+                physics.chargePower = Math.min(1.0, physics.chargePower + dt * 1.18);
+                const percent = Math.floor(physics.chargePower * 100);
+                chargeBar.style.width = `${percent}%`;
+                chargePercent.innerText = `${percent}%`;
+                updateTrajectoryLine();
+
+                // Compress body down into tight spring crouch
+                const compression = 1.0 - (physics.chargePower * 0.36);
+                frogAnimRoot.scale.set(1.0 / Math.sqrt(compression), compression, 1.0 / Math.sqrt(compression));
+
+                // Knees flare outward slightly while charging
+                hindLegL.rotation.z = -physics.chargePower * 0.22;
+                hindLegR.rotation.z = physics.chargePower * 0.22;
+                frontLegL.rotation.x = physics.chargePower * 0.25;
+                frontLegR.rotation.x = physics.chargePower * 0.25;
+            } else if (physics.onGround) {
+                // Gentle throat and chest breathing pulse while resting in crouch
+                const breathe = Math.sin(nowMs * 0.005) * 0.035;
+                frogAnimRoot.scale.set(1.0 + breathe * 0.5, 1.0 + breathe, 1.0);
+                bellyGroup.scale.set(1.0, 1.0, 1.0 + Math.sin(nowMs * 0.007) * 0.12);
+
+                // Reset limbs to resting crouch
+                frontLegL.rotation.set(0, 0, 0);
+                frontLegR.rotation.set(0, 0, 0);
+                hindLegL.rotation.set(0, 0, 0);
+                hindLegR.rotation.set(0, 0, 0);
+            }
+
+            if (!physics.onGround) {
+                // Dynamic leap in mid-air: front legs reach forward, hind legs kick backward
+                frogAnimRoot.scale.set(0.92, 1.18, 0.94);
+                frontLegL.rotation.x = -0.55;
+                frontLegR.rotation.x = -0.55;
+                hindLegL.rotation.x = 0.65;
+                hindLegR.rotation.x = 0.65;
+
+                physics.vel.y -= GRAVITY * dt;
+                physics.pos.addScaledVector(physics.vel, dt);
+
+                // Cylinder wall boundary collision
+                const horizDist = Math.sqrt(physics.pos.x * physics.pos.x + physics.pos.z * physics.pos.z);
+                const maxRadius = WELL_RADIUS - 0.58;
+
+                if (horizDist > maxRadius) {
+                    const norm = new THREE.Vector2(physics.pos.x, physics.pos.z).normalize();
+                    physics.pos.x = norm.x * maxRadius;
+                    physics.pos.z = norm.y * maxRadius;
+                    physics.vel.x = -physics.vel.x * 0.35;
+                    physics.vel.z = -physics.vel.z * 0.35;
+                    frogAudio.playLand();
+                }
+
+                // Landing on platforms check
+                if (physics.vel.y < 0) {
+                    for (let p of platforms) {
+                        const distToP = Math.hypot(physics.pos.x - p.pos.x, physics.pos.z - p.pos.z);
+                        const platformTopY = p.pos.y + p.height / 2;
+
+                        if (distToP <= p.radius && Math.abs(physics.pos.y - platformTopY) < 0.62) {
+                            physics.pos.y = platformTopY;
+                            physics.vel.set(0, 0, 0);
+                            physics.onGround = true;
+                            frogAudio.playLand();
+
+                            if (p.isTopExit && !physics.reachedWellTop) {
+                                triggerVictory();
+                            }
+                            break;
+                        }
+                    }
+                }
+
+                // Bottom well water landing
+                if (physics.pos.y <= 0.38) {
+                    const fallSpeed = Math.abs(physics.vel.y);
+                    physics.pos.y = 0.38;
+                    physics.vel.set(0, 0, 0);
+                    physics.onGround = true;
+                    frogAudio.playSplash();
+                    triggerWaterSplash(physics.pos.x, physics.pos.z, Math.max(1.0, fallSpeed * 0.14));
+
+                    if (storyMilestones.firstJump) {
+                        triggerSpeech("จ๋อม! ตกน้ำก้นบ่อจนได้ ดีนะที่ว่ายน้ำเป็น รีบปีนขึ้นกะลาเร็ว!");
+                    }
+                }
+            }
+
+            frog.position.copy(physics.pos);
+            frog.rotation.y = physics.facingAngle;
+            frogGlowLight.position.set(physics.pos.x, physics.pos.y + 1.2, physics.pos.z);
+
+            // Update Altitude HUD
+            const currentAlt = Math.max(0, physics.pos.y).toFixed(1);
+            altitudeText.innerText = `${currentAlt} m`;
+            const altPct = Math.min(100, (physics.pos.y / WELL_HEIGHT) * 100);
+            altitudeProgress.style.width = `${altPct}%`;
+
+            checkAltitudeTriggers(physics.pos.y);
+        }
+
+        let inspectCamYOffset = null;
+
+        function updateCamera() {
+            const targetY = inspectCamYOffset !== null ? inspectCamYOffset : physics.pos.y + 0.65;
+            const targetX = inspectCamYOffset !== null ? 0 : physics.pos.x;
+            const targetZ = inspectCamYOffset !== null ? 0 : physics.pos.z;
+            const lookTarget = new THREE.Vector3(targetX, targetY, targetZ);
+
+            // Free 360 orbit camera (renders through walls with BackSide cutaway seamlessly)
+            const dirX = Math.sin(camTheta) * Math.cos(camPhi);
+            const dirY = Math.sin(camPhi);
+            const dirZ = Math.cos(camTheta) * Math.cos(camPhi);
+
+            const targetCamX = lookTarget.x + dirX * camDistance;
+            const targetCamY = Math.max(0.45, lookTarget.y + dirY * camDistance + 0.25);
+            const targetCamZ = lookTarget.z + dirZ * camDistance;
+
+            camera.position.lerp(new THREE.Vector3(targetCamX, targetCamY, targetCamZ), 0.16);
+            camera.lookAt(lookTarget);
+        }
+
+        const victoryModal = document.getElementById('victory-modal');
+        const statJumpCount = document.getElementById('stat-jump-count');
+        const btnPlayAgain = document.getElementById('btn-play-again');
+        const btnReset = document.getElementById('btn-reset');
+        const btnSound = document.getElementById('btn-sound');
+        const iconSoundOn = document.getElementById('icon-sound-on');
+        const iconSoundOff = document.getElementById('icon-sound-off');
+
+        function triggerVictory() {
+            physics.reachedWellTop = true;
+            statJumpCount.innerText = `${physics.jumpCount} ครั้ง`;
+            victoryModal.classList.remove('hidden');
+            frogAudio.playFanfare();
+        }
+
+        function resetToBottom() {
+            physics.pos.set(0, 0.45, 0);
+            physics.vel.set(0, 0, 0);
+            physics.onGround = true;
+            physics.charging = false;
+            physics.facingAngle = 0;
+            physics.chargePower = 0;
+            physics.reachedWellTop = false;
+            inspectCamYOffset = null;
+            victoryModal.classList.add('hidden');
+            triggerSpeech("กลับมาอยู่ในกะลาอันอบอุ่นอีกครั้ง... ลุยใหม่กันเลย!");
+            frogAudio.playCroak();
+        }
+
+        btnPlayAgain.addEventListener('click', resetToBottom);
+        btnReset.addEventListener('click', resetToBottom);
+
+        // PBR Wall Inspector Controls (STEP 1)
+        const pbrInspectorPanel = document.getElementById('pbr-inspector-panel');
+        const btnCloseInspector = document.getElementById('btn-close-inspector');
+        const pbrPresetDesc = document.getElementById('pbr-preset-desc');
+        const btnWallPreset = document.getElementById('btn-wall-preset');
+        const labelWallPreset = document.getElementById('label-wall-preset');
+
+        if (btnWallPreset) {
+            btnWallPreset.addEventListener('click', () => {
+                if (pbrInspectorPanel) {
+                    pbrInspectorPanel.classList.toggle('hidden');
+                }
+            });
+        }
+
+        if (btnCloseInspector) {
+            btnCloseInspector.addEventListener('click', () => {
+                pbrInspectorPanel.classList.add('hidden');
+            });
+        }
+
+        function updatePresetUI(idx) {
+            const p = applyWallScalePreset(idx);
+            if (labelWallPreset) labelWallPreset.innerText = `${p.rx}x${p.ry}`;
+            if (pbrPresetDesc) pbrPresetDesc.innerText = p.desc;
+            for (let i = 0; i < 3; i++) {
+                const btn = document.getElementById(`btn-preset-${i}`);
+                if (btn) {
+                    if (i === idx) {
+                        btn.className = 'btn-pbr-preset bg-emerald-600 text-white py-1 px-1 rounded-lg text-[10px] font-bold text-center';
+                    } else {
+                        btn.className = 'btn-pbr-preset bg-slate-800 hover:bg-slate-700 text-slate-300 py-1 px-1 rounded-lg text-[10px] text-center';
+                    }
+                }
+            }
+            triggerSpeech(`ผนังหิน: ${p.name} - ${p.desc}`);
+            frogAudio.playJump(0.25);
+        }
+
+        for (let i = 0; i < 3; i++) {
+            const btn = document.getElementById(`btn-preset-${i}`);
+            if (btn) {
+                btn.addEventListener('click', () => updatePresetUI(i));
+            }
+        }
+
+        // PBR Map Toggles
+        const toggleNormal = document.getElementById('toggle-normal');
+        let normalEnabled = true;
+        if (toggleNormal) {
+            toggleNormal.addEventListener('click', () => {
+                normalEnabled = !normalEnabled;
+                wellMat.normalMap = normalEnabled ? wellNormalMap : null;
+                wellMat.needsUpdate = true;
+                toggleNormal.innerText = `Normal: ${normalEnabled ? 'ON' : 'OFF'}`;
+                toggleNormal.className = normalEnabled
+                    ? 'bg-emerald-700 text-white py-1 rounded-lg text-[9px] font-bold text-center'
+                    : 'bg-rose-900 text-rose-200 py-1 rounded-lg text-[9px] font-bold text-center';
+            });
+        }
+
+        const toggleRoughness = document.getElementById('toggle-roughness');
+        let roughnessEnabled = true;
+        if (toggleRoughness) {
+            toggleRoughness.addEventListener('click', () => {
+                roughnessEnabled = !roughnessEnabled;
+                wellMat.roughnessMap = roughnessEnabled ? wellRoughnessMap : null;
+                wellMat.needsUpdate = true;
+                toggleRoughness.innerText = `Rough: ${roughnessEnabled ? 'ON' : 'OFF'}`;
+                toggleRoughness.className = roughnessEnabled
+                    ? 'bg-emerald-700 text-white py-1 rounded-lg text-[9px] font-bold text-center'
+                    : 'bg-rose-900 text-rose-200 py-1 rounded-lg text-[9px] font-bold text-center';
+            });
+        }
+
+        const toggleAo = document.getElementById('toggle-ao');
+        let aoEnabled = true;
+        if (toggleAo) {
+            toggleAo.addEventListener('click', () => {
+                aoEnabled = !aoEnabled;
+                wellMat.aoMap = aoEnabled ? wellAoMap : null;
+                wellMat.needsUpdate = true;
+                toggleAo.innerText = `AO: ${aoEnabled ? 'ON' : 'OFF'}`;
+                toggleAo.className = aoEnabled
+                    ? 'bg-emerald-700 text-white py-1 rounded-lg text-[9px] font-bold text-center'
+                    : 'bg-rose-900 text-rose-200 py-1 rounded-lg text-[9px] font-bold text-center';
+            });
+        }
+
+        const toggleGodRays = document.getElementById('toggle-godrays');
+        let godRaysEnabled = true;
+        if (toggleGodRays) {
+            toggleGodRays.addEventListener('click', () => {
+                godRaysEnabled = !godRaysEnabled;
+                godRayGroup.visible = godRaysEnabled;
+                toggleGodRays.innerText = `God Rays: ${godRaysEnabled ? 'ON' : 'OFF'}`;
+                toggleGodRays.className = godRaysEnabled
+                    ? 'bg-emerald-700 text-white py-1 rounded-lg text-[9px] font-bold text-center'
+                    : 'bg-rose-900 text-rose-200 py-1 rounded-lg text-[9px] font-bold text-center';
+            });
+        }
+
+        const toggleSun = document.getElementById('toggle-sun');
+        let sunEnabled = true;
+        if (toggleSun) {
+            toggleSun.addEventListener('click', () => {
+                sunEnabled = !sunEnabled;
+                sunLight.visible = sunEnabled;
+                openingLight.visible = sunEnabled;
+                toggleSun.innerText = `Sunlight: ${sunEnabled ? 'ON' : 'OFF'}`;
+                toggleSun.className = sunEnabled
+                    ? 'bg-emerald-700 text-white py-1 rounded-lg text-[9px] font-bold text-center'
+                    : 'bg-rose-900 text-rose-200 py-1 rounded-lg text-[9px] font-bold text-center';
+            });
+        }
+
+        const btnWaterCam = document.getElementById('btn-water-cam');
+        if (btnWaterCam) {
+            btnWaterCam.addEventListener('click', () => {
+                inspectCamYOffset = 0.45;
+                camDistance = 4.2;
+                camPhi = 0.35;
+                triggerSpeech("ซูมดูก้นบ่อ: ผิวน้ำ 2-Layer PBR, มอส และเศษแหนลอยน้ำ");
+                frogAudio.playCroak();
+            });
+        }
+
+        const btnSplashTest = document.getElementById('btn-splash-test');
+        if (btnSplashTest) {
+            btnSplashTest.addEventListener('click', () => {
+                triggerWaterSplash(0.8, 0.4, 2.0);
+                frogAudio.playSplash();
+                triggerSpeech("จ๋อม! ทดสอบคลื่นน้ำกระเพื่อมและละอองน้ำกระเซ็น");
+            });
+        }
+
+        // Height inspection view buttons
+        document.querySelectorAll('.btn-cam-view').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const h = btn.getAttribute('data-h');
+                if (h === 'frog') {
+                    inspectCamYOffset = null;
+                    triggerSpeech("มุมกล้องกลับมาจับที่ตัวน้องกบ");
+                } else {
+                    inspectCamYOffset = parseFloat(h);
+                    triggerSpeech(`ส่องผนังหินที่ความสูงระดับ ${inspectCamYOffset} เมตร`);
+                }
+                frogAudio.playCroak();
+            });
+        });
+
+        // Zoom buttons
+        const btnZoomIn = document.getElementById('btn-zoom-in');
+        if (btnZoomIn) {
+            btnZoomIn.addEventListener('click', () => {
+                camDistance = Math.max(2.2, camDistance - 1.2);
+            });
+        }
+        const btnZoomOut = document.getElementById('btn-zoom-out');
+        if (btnZoomOut) {
+            btnZoomOut.addEventListener('click', () => {
+                camDistance = Math.min(14.0, camDistance + 1.2);
+            });
+        }
+
+        btnSound.addEventListener('click', () => {
+            frogAudio.enabled = !frogAudio.enabled;
+            if (frogAudio.enabled) {
+                iconSoundOn.classList.remove('hidden');
+                iconSoundOff.classList.add('hidden');
+                frogAudio.playCroak();
+            } else {
+                iconSoundOn.classList.add('hidden');
+                iconSoundOff.classList.remove('hidden');
+            }
+        });
+
+        // Responsive Resizing for Portrait & Landscape
+        function handleResize() {
+            const w = getW();
+            const h = getH();
+            camera.aspect = w / h;
+
+            if (w < h) {
+                camera.fov = 60;
+                camDistance = 6.4;
+            } else {
+                camera.fov = 50;
+                camDistance = 5.5;
+            }
+
+            camera.updateProjectionMatrix();
+            renderer.setSize(w, h);
+        }
+
+        window.addEventListener('resize', handleResize);
+        window.addEventListener('orientationchange', () => {
+            setTimeout(handleResize, 150);
+        });
+
+        let lastTime = performance.now();
+
+        function animate(now) {
+            requestAnimationFrame(animate);
+            const dt = Math.min((now - lastTime) / 1000, 0.08);
+            lastTime = now;
+
+            updatePhysics(dt);
+            updateCamera();
+
+            // STEP 3: 2-Layer Normal Scrolling
+            waterNormal1.offset.x = (now * 0.000038) % 1;
+            waterNormal1.offset.y = (now * 0.000026) % 1;
+            waterNormal2.offset.x = -(now * 0.000072) % 1;
+            waterNormal2.offset.y = (now * 0.000052) % 1;
+
+            // Water breathing + gentle surface oscillation
+            const waterY = 0.20 + Math.sin(now * 0.0018) * 0.015;
+            waterMesh.position.y = waterY;
+            waterSheenMesh.position.y = waterY + 0.012;
+            algae.position.y = waterY - 0.20;
+
+            // Ambient coconut ripple rings
+            for (let i = 0; i < waterRipples.length; i++) {
+                const ring = waterRipples[i];
+                const cycle = ((now * 0.00020) + ring.userData.phase) % 1;
+                const scale = 0.70 + cycle * 7.5;
+                ring.scale.set(scale, scale, scale);
+                ring.material.opacity = (1 - cycle) * 0.18;
+            }
+
+            // Dynamic splash ripple ring pool animation
+            for (let item of splashPool) {
+                if (!item.active) continue;
+                const elapsed = (now - item.startTime - item.delay) / 1000;
+                if (elapsed < 0) continue;
+                const progress = elapsed / item.duration;
+                if (progress >= 1.0) {
+                    item.active = false;
+                    item.mesh.visible = false;
+                } else {
+                    const scale = 0.4 + progress * item.maxScale;
+                    item.mesh.scale.set(scale, scale, scale);
+                    item.mesh.material.opacity = (1.0 - progress) * 0.55;
+                }
+            }
+
+            // Dynamic splash droplets physics
+            let anyActiveDrops = false;
+            const dropPos = splashDropGeo.attributes.position.array;
+            for (let i = 0; i < splashDropCount; i++) {
+                const v = splashDropVel[i];
+                if (v.life > 0) {
+                    v.life -= dt;
+                    v.y -= 9.8 * dt;
+                    dropPos[i * 3]     += v.x * dt;
+                    dropPos[i * 3 + 1] += v.y * dt;
+                    dropPos[i * 3 + 2] += v.z * dt;
+                    if (dropPos[i * 3 + 1] <= 0.20) {
+                        v.life = 0;
+                        dropPos[i * 3 + 1] = -100;
+                    } else {
+                        anyActiveDrops = true;
+                    }
+                }
+            }
+            if (anyActiveDrops) splashDropGeo.attributes.position.needsUpdate = true;
+
+            // Fireflies hover around a stable base instead of accumulating drift
+            const positions = fireflyGeo.attributes.position.array;
+            for (let i = 0; i < fireflyCount; i++) {
+                positions[i * 3 + 1] = fireflyBaseY[i] + Math.sin(now * 0.0012 + i * 1.71) * 0.22;
+            }
+            fireflyGeo.attributes.position.needsUpdate = true;
+            fireflyMat.opacity = 0.72 + Math.sin(now * 0.003) * 0.13;
+
+            // Slow vertical moisture drift
+            const mistPos = mistGeo.attributes.position.array;
+            for (let i = 0; i < mistCount; i++) {
+                mistPos[i * 3 + 1] = mistBaseY[i] + Math.sin(now * 0.00055 + i * 0.47) * 0.55;
+            }
+            mistGeo.attributes.position.needsUpdate = true;
+
+            // Light shafts pulse almost imperceptibly to avoid a static-cardboard look
+            rayMat.opacity = 0.18 + Math.sin(now * 0.0007) * 0.022;
+            rayMatInner.opacity = 0.12 + Math.sin(now * 0.0009 + 1.4) * 0.016;
+            rayMatSide.opacity = 0.08 + Math.sin(now * 0.00082 + 2.3) * 0.012;
+
+            // Sun motes hover in the shaft
+            const motePos = moteGeo.attributes.position.array;
+            for (let i = 0; i < moteCount; i++) {
+                motePos[i * 3 + 1] = moteBaseY[i] + Math.sin(now * 0.0008 * moteSpeed[i] + i) * 0.45;
+            }
+            moteGeo.attributes.position.needsUpdate = true;
+            moteMat.opacity = 0.50 + Math.sin(now * 0.0015) * 0.12;
+            waterMat.roughness = 0.16 + Math.sin(now * 0.00048) * 0.02;
+
+            renderer.render(scene, camera);
+        }
+
+        function launchGame() {
+            handleResize();
+            requestAnimationFrame(animate);
+        }
+
+        if (document.readyState === 'complete' || document.readyState === 'interactive') {
+            setTimeout(launchGame, 50);
+        } else {
+            document.addEventListener('DOMContentLoaded', launchGame);
+        }
