@@ -2248,11 +2248,11 @@
 
             rows.sort((a, b) => {
                 const diffH = (parseFloat(b.max_height) || 0) - (parseFloat(a.max_height) || 0);
-                if (Math.abs(diffH) > 0.05) return diffH;
+                if (diffH !== 0) return diffH;
                 return (parseFloat(a.clear_time_seconds) || 0) - (parseFloat(b.clear_time_seconds) || 0);
             });
 
-            rows.forEach((row, idx) => {
+            rows.slice(0, 200).forEach((row, idx) => {
                 const rank = idx + 1;
                 let medal = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : `${rank}.`;
                 const isEscaped = row.is_escaped ? true : false;
@@ -2264,7 +2264,7 @@
 
                 item.innerHTML = `
                     <div class="flex items-center gap-2 min-w-0">
-                        <span class="font-bold text-sm w-6 text-center">${medal}</span>
+                        <span class="font-bold text-sm w-9 shrink-0 text-center">${medal}</span>
                         <div class="truncate">
                             <span class="font-bold text-white">${escapeHtml(row.player_name || 'กบนิรนาม')}</span>
                             ${isEscaped ? '<span class="ml-1 text-[9px] bg-emerald-600/90 text-white px-1.5 py-0.2 rounded font-bold">พ้นบ่อ 🌤️</span>' : ''}
@@ -2306,7 +2306,15 @@
         }
 
         if (btnLeaderboard) btnLeaderboard.addEventListener('click', openLeaderboardModal);
-        if (btnCloseLeaderboard) btnCloseLeaderboard.addEventListener('click', () => leaderboardModal.classList.add('hidden'));
+        if (btnCloseLeaderboard) btnCloseLeaderboard.addEventListener('click', () => {
+            leaderboardModal.classList.add('hidden');
+            if (physics.dead) deathDialog.showModal();
+        });
+        document.getElementById('btn-death-save').addEventListener('click', () => {
+            deathDialog.close();
+            openLeaderboardModal();
+            inputPlayerName.focus();
+        });
         if (btnRefreshLb) btnRefreshLb.addEventListener('click', fetchLeaderboardData);
 
         if (btnVictorySave) {

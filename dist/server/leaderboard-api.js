@@ -1,7 +1,7 @@
 // Used by both the Sites Worker and the local Node server.
 (function () {
     const MAX_BODY = 256 * 1024, RUN_LIFETIME = 30 * 60 * 1000;
-    const LIST = "SELECT id, player_name, max_height, clear_time_seconds, jump_count, is_escaped, device_type, created_at FROM leaderboard WHERE verified = 1 ORDER BY max_height DESC, clear_time_seconds ASC LIMIT 25";
+    const LIST = "SELECT id, player_name, max_height, clear_time_seconds, jump_count, is_escaped, device_type, created_at FROM leaderboard WHERE verified = 1 ORDER BY max_height DESC, clear_time_seconds ASC LIMIT 200";
     const limits = new Map();
     function json(value, status = 200, extra = {}) {
         return new Response(JSON.stringify(value), { status, headers: {

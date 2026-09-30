@@ -102,6 +102,7 @@ assert.equal(state.elapsedTicks, 180);
 
 // Build a complete climb using only legal 60 Hz turn/charge/release inputs.
 let climb = Rules.createState(), initialAngle = 0;
+let deathStart, deathPrefix;
 const segments = [];
 function record(ticks, buttons) {
     if (!ticks) return;
@@ -141,6 +142,10 @@ for (let index = 1; index < Rules.platforms.length; index++) {
     record(Math.abs(chosen.n), chosen.n > 0 ? 1 : 2);
     record(chosen.charge, 4);
     record(chosen.air, 0);
+    if (index === 20) {
+        deathStart = structuredClone(climb);
+        deathPrefix = structuredClone(segments);
+    }
 }
 const winningProof = { version: 1, initial_angle: initialAngle, segments };
 const victory = Rules.replay(winningProof, 120);
@@ -151,6 +156,30 @@ assert.equal(response.status, 201);
 assert.deepEqual((await response.json()).score, victory);
 assert.throws(() => Rules.replay({ ...winningProof, segments: [...segments, [1, 0]] }, 120),
     /after run ended/, "A finished run cannot continue accumulating inputs");
+
+// A real fatal fall remains eligible for a named, verified score.
+let fatalProof;
+for (let turns = 0; turns < 111 && !fatalProof; turns++) {
+    const trial = structuredClone(deathStart);
+    for (let i = 0; i < turns; i++) Rules.step(trial, 1);
+    for (let i = 0; i < 49; i++) Rules.step(trial, 4);
+    Rules.step(trial, 0);
+    let air = 1;
+    while (!trial.onGround && air < 600) { Rules.step(trial, 0); air++; }
+    if (trial.dead) fatalProof = { version: 1, initial_angle: initialAngle,
+        segments: [...deathPrefix, ...(turns ? [[turns, 1]] : []), [49, 4], [air, 0]] };
+}
+assert.ok(fatalProof, "Find a legal fatal fall from the climb");
+response = await send({ ...payload, player_name: "กบตกบ่อ", run_id: runId(120), replay: fatalProof });
+assert.equal(response.status, 201, "Dead players can save their verified statistics");
+assert.equal((await response.json()).score.isEscaped, 0);
+for (let i = 0; i < 205; i++) sqlite.prepare(
+    "INSERT INTO leaderboard (player_name, max_height, clear_time_seconds, verified) VALUES (?, ?, ?, 1)"
+).run("rank-" + i, i / 10, 100);
+response = await worker.fetch(new Request("https://game.example/api/leaderboard"), env);
+const ranked = (await response.json()).data;
+assert.equal(ranked.length, 200);
+assert.ok(ranked.every((row, i) => !i || ranked[i - 1].max_height >= row.max_height));
 
 // Exercise the real local HTTP API in an isolated folder/database.
 const directory = await mkdtemp(join(tmpdir(), "kob-api-test-"));

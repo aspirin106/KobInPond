@@ -1,4 +1,4 @@
-const CACHE_NAME = 'kob-in-kala-v6-verified-scores';
+const CACHE_NAME = 'kob-in-kala-v7-death-score-200';
 
 const STATIC_ASSETS = [
     './',
