@@ -1321,63 +1321,78 @@
         const frogAnimRoot = new THREE.Group();
         frog.add(frogAnimRoot);
 
-        // Cel-shaded Outline Material & Voxel Shading Materials
-        const outlineLineMat = new THREE.LineBasicMaterial({ color: 0x14240e, linewidth: 2 });
-
-        function createVoxelBoxMesh(geo, mat, hasOutline = true) {
+        function createLowPolyMesh(geo, mat) {
             const mesh = new THREE.Mesh(geo, mat);
             mesh.castShadow = true;
             mesh.receiveShadow = true;
-            if (hasOutline) {
-                const edges = new THREE.EdgesGeometry(geo);
-                const line = new THREE.LineSegments(edges, outlineLineMat);
-                mesh.add(line);
-            }
             return mesh;
         }
 
-        // Palette matching 27763.jpg
+        // Low-Poly Frog Palette matching reference image
         const frogGreenMat = new THREE.MeshStandardMaterial({
-            color: 0x6dc72c, // Vibrant lime green
-            roughness: 0.38,
-            metalness: 0.05
+            color: 0x72b938, // Vibrant leaf lime green
+            roughness: 0.82,
+            metalness: 0.0,
+            flatShading: true
         });
 
         const frogDarkGreenMat = new THREE.MeshStandardMaterial({
-            color: 0x58aa22,
-            roughness: 0.42
+            color: 0x4f8728, // Nostrils and accent creases
+            roughness: 0.88,
+            metalness: 0.0,
+            flatShading: true
         });
 
-        const frogYellowMat = new THREE.MeshStandardMaterial({
-            color: 0xfbcc22, // Rich bright yellow
-            roughness: 0.38,
-            metalness: 0.05
+        const frogCreamMat = new THREE.MeshStandardMaterial({
+            color: 0xdcd59b, // Warm ivory cream chin and belly
+            roughness: 0.86,
+            metalness: 0.0,
+            flatShading: true
         });
 
-        const eyeWhiteMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
-        const eyeBlackMat = new THREE.MeshBasicMaterial({ color: 0x151515 });
+        const eyeWhiteMat = new THREE.MeshStandardMaterial({
+            color: 0xfbfaf4,
+            roughness: 0.60,
+            metalness: 0.0,
+            flatShading: true
+        });
 
-        // 1. Torso & Hunched Back Group
+        const eyePupilMat = new THREE.MeshStandardMaterial({
+            color: 0x241a18,
+            roughness: 0.45,
+            metalness: 0.0,
+            flatShading: true
+        });
+
+        const eyeGlintMat = new THREE.MeshBasicMaterial({
+            color: 0xffffff
+        });
+
+        // 1. Torso & Cream Belly Group
         const torsoGroup = new THREE.Group();
 
-        // Main body core (slanted slightly in a crouched resting position)
-        const mainBodyGeo = new THREE.BoxGeometry(0.52, 0.42, 0.48);
-        const mainBody = createVoxelBoxMesh(mainBodyGeo, frogGreenMat);
-        mainBody.position.set(0, 0.28, -0.04);
+        // Main green low-poly torso (hunched forward in alert resting posture)
+        const mainBodyGeo = new THREE.DodecahedronGeometry(0.38, 1);
+        mainBodyGeo.scale(1.15, 0.95, 1.10);
+        const mainBody = createLowPolyMesh(mainBodyGeo, frogGreenMat);
+        mainBody.position.set(0, 0.28, -0.06);
+        mainBody.rotation.x = 0.16;
         torsoGroup.add(mainBody);
 
-        // Hunched spine / stepped back box (visible behind head in 27763.jpg)
-        const hunchedBackGeo = new THREE.BoxGeometry(0.44, 0.26, 0.28);
-        const hunchedBack = createVoxelBoxMesh(hunchedBackGeo, frogGreenMat);
+        // Hunched back spine ridge
+        const hunchedBackGeo = new THREE.DodecahedronGeometry(0.28, 0);
+        hunchedBackGeo.scale(1.0, 0.85, 1.25);
+        const hunchedBack = createLowPolyMesh(hunchedBackGeo, frogGreenMat);
         hunchedBack.position.set(0, 0.38, -0.16);
         torsoGroup.add(hunchedBack);
 
-        // Bright Yellow Chest/Belly panel between the two front legs (matching 27763.jpg)
+        // Warm Cream Belly / Chest (Pulsing throat/belly group)
         const bellyGroup = new THREE.Group();
-        const bellyPlateGeo = new THREE.BoxGeometry(0.38, 0.32, 0.06);
-        const bellyPlate = createVoxelBoxMesh(bellyPlateGeo, frogYellowMat);
-        bellyPlate.position.set(0, 0.25, 0.22);
-        bellyPlate.rotation.x = -0.12;
+        const bellyPlateGeo = new THREE.DodecahedronGeometry(0.30, 1);
+        bellyPlateGeo.scale(0.92, 1.12, 0.72);
+        const bellyPlate = createLowPolyMesh(bellyPlateGeo, frogCreamMat);
+        bellyPlate.position.set(0, 0.26, 0.16);
+        bellyPlate.rotation.x = -0.14;
         bellyGroup.add(bellyPlate);
         torsoGroup.add(bellyGroup);
 
@@ -1387,99 +1402,123 @@
         const headGroup = new THREE.Group();
         headGroup.position.set(0, 0.44, 0.08);
 
-        // Main green upper head block
-        const headUpperGeo = new THREE.BoxGeometry(0.56, 0.22, 0.44);
-        const headUpper = createVoxelBoxMesh(headUpperGeo, frogGreenMat);
-        headUpper.position.set(0, 0.11, 0.02);
+        // Upper green head dome
+        const headUpperGeo = new THREE.DodecahedronGeometry(0.32, 1);
+        headUpperGeo.scale(1.35, 0.82, 1.05);
+        const headUpper = createLowPolyMesh(headUpperGeo, frogGreenMat);
+        headUpper.position.set(0, 0.10, 0.03);
         headGroup.add(headUpper);
 
-        // Upper snout ridge
-        const snoutUpperGeo = new THREE.BoxGeometry(0.56, 0.10, 0.16);
-        const snoutUpper = createVoxelBoxMesh(snoutUpperGeo, frogGreenMat);
-        snoutUpper.position.set(0, 0.06, 0.26);
-        headGroup.add(snoutUpper);
+        // Smiling Cream Chin / Throat (sweeping under the mouth from cheek to cheek)
+        const chinGeo = new THREE.CylinderGeometry(0.38, 0.26, 0.22, 8, 1);
+        chinGeo.scale(1.15, 1.0, 0.92);
+        const chin = createLowPolyMesh(chinGeo, frogCreamMat);
+        chin.position.set(0, -0.05, 0.09);
+        chin.rotation.x = -0.10;
+        headGroup.add(chin);
 
-        // Wide bright yellow lower jaw block spanning front mouth (exact feature from 27763.jpg)
-        const lowerJawGeo = new THREE.BoxGeometry(0.56, 0.15, 0.36);
-        const lowerJaw = createVoxelBoxMesh(lowerJawGeo, frogYellowMat);
-        lowerJaw.position.set(0, -0.06, 0.14);
-        headGroup.add(lowerJaw);
+        // Nose ridge & cute nostril accents
+        const nostrilL = createLowPolyMesh(new THREE.ConeGeometry(0.022, 0.05, 4), frogDarkGreenMat);
+        nostrilL.position.set(-0.065, 0.165, 0.26);
+        nostrilL.rotation.set(-0.6, 0.3, 0);
+        headGroup.add(nostrilL);
 
-        // Two Square Eye Towers with notch in between
-        function createVoxelEye(xPos) {
+        const nostrilR = createLowPolyMesh(new THREE.ConeGeometry(0.022, 0.05, 4), frogDarkGreenMat);
+        nostrilR.position.set(0.065, 0.165, 0.26);
+        nostrilR.rotation.set(-0.6, -0.3, 0);
+        headGroup.add(nostrilR);
+
+        // Big Bulbous Eye Turrets matching reference photo
+        function createLowPolyEye(xPos) {
             const eyeGroup = new THREE.Group();
+            const sign = xPos < 0 ? -1 : 1;
 
-            // Green cube tower
-            const towerGeo = new THREE.BoxGeometry(0.20, 0.22, 0.22);
-            const tower = createVoxelBoxMesh(towerGeo, frogGreenMat);
-            tower.position.set(0, 0.11, 0);
-            eyeGroup.add(tower);
+            // Green faceted dome turret
+            const turretGeo = new THREE.IcosahedronGeometry(0.165, 1);
+            turretGeo.scale(1.0, 1.15, 0.95);
+            const turret = createLowPolyMesh(turretGeo, frogGreenMat);
+            turret.position.set(0, 0.08, 0);
+            eyeGroup.add(turret);
 
-            // Front square white eyeball plate
-            const whiteGeo = new THREE.BoxGeometry(0.16, 0.16, 0.02);
-            const eyeWhite = new THREE.Mesh(whiteGeo, eyeWhiteMat);
-            eyeWhite.position.set(0, 0.11, 0.115);
+            // Sclera: faceted white eyeball disc
+            const whiteGeo = new THREE.CylinderGeometry(0.125, 0.125, 0.025, 8);
+            const eyeWhite = createLowPolyMesh(whiteGeo, eyeWhiteMat);
+            eyeWhite.rotation.x = Math.PI / 2;
+            eyeWhite.position.set(0, 0.08, 0.125);
             eyeGroup.add(eyeWhite);
 
-            // Square black pupil
-            const pupilGeo = new THREE.BoxGeometry(0.10, 0.10, 0.02);
-            const pupil = new THREE.Mesh(pupilGeo, eyeBlackMat);
-            pupil.position.set(xPos < 0 ? -0.01 : 0.01, 0.11, 0.125);
+            // Large dark pupil
+            const pupilGeo = new THREE.CylinderGeometry(0.085, 0.085, 0.025, 8);
+            const pupil = createLowPolyMesh(pupilGeo, eyePupilMat);
+            pupil.rotation.x = Math.PI / 2;
+            pupil.position.set(sign * 0.012, 0.075, 0.138);
             eyeGroup.add(pupil);
 
-            // Specular white catchlight dot (upper corner matching 27763.jpg)
-            const catchlightGeo = new THREE.BoxGeometry(0.035, 0.035, 0.02);
-            const catchlight = new THREE.Mesh(catchlightGeo, eyeWhiteMat);
-            catchlight.position.set(xPos < 0 ? 0.02 : 0.035, 0.135, 0.135);
-            eyeGroup.add(catchlight);
+            // Chunky white catchlight highlight square at upper-right
+            const glintGeo = new THREE.PlaneGeometry(0.038, 0.045);
+            const glint = new THREE.Mesh(glintGeo, eyeGlintMat);
+            glint.position.set(0.030, 0.105, 0.155);
+            eyeGroup.add(glint);
 
-            eyeGroup.position.set(xPos, 0.22, 0.05);
+            eyeGroup.position.set(xPos, 0.20, 0.04);
+            eyeGroup.rotation.z = sign * -0.20;
+            eyeGroup.rotation.x = -0.08;
             return eyeGroup;
         }
 
-        const eyeL = createVoxelEye(-0.17);
-        const eyeR = createVoxelEye(0.17);
+        const eyeL = createLowPolyEye(-0.19);
+        const eyeR = createLowPolyEye(0.19);
         headGroup.add(eyeL);
         headGroup.add(eyeR);
         frogAnimRoot.add(headGroup);
 
-        // 3. Front Forelimbs (Standing vertically on ground in front of yellow belly)
+        // 3. Front Forelimbs with 4 Padded Webbed Toes
         function createFrontForeleg(isLeft) {
             const legGroup = new THREE.Group();
             const sign = isLeft ? -1 : 1;
 
-            // Vertical front arm bone
-            const armGeo = new THREE.BoxGeometry(0.10, 0.32, 0.10);
-            const arm = createVoxelBoxMesh(armGeo, frogGreenMat);
-            arm.position.set(0, -0.16, 0);
-            legGroup.add(arm);
+            // Slender green upper arm
+            const armUpperGeo = new THREE.CylinderGeometry(0.055, 0.046, 0.20, 6);
+            const armUpper = createLowPolyMesh(armUpperGeo, frogGreenMat);
+            armUpper.position.set(0, -0.09, 0);
+            armUpper.rotation.z = sign * -0.08;
+            legGroup.add(armUpper);
 
-            // Front foot with 3 splayed flat toes resting on the floor
+            // Lower forearm
+            const armLowerGeo = new THREE.CylinderGeometry(0.046, 0.040, 0.18, 6);
+            const armLower = createLowPolyMesh(armLowerGeo, frogGreenMat);
+            armLower.position.set(sign * 0.02, -0.24, 0.02);
+            armLower.rotation.x = 0.12;
+            legGroup.add(armLower);
+
+            // Splayed Foot with 4 distinct toes and chunky hexagonal pads
             const footGroup = new THREE.Group();
-            footGroup.position.set(0, -0.32, 0.04);
+            footGroup.position.set(sign * 0.03, -0.32, 0.04);
 
-            // Center toe
-            const centerToeGeo = new THREE.BoxGeometry(0.045, 0.045, 0.12);
-            const centerToe = createVoxelBoxMesh(centerToeGeo, frogGreenMat);
-            centerToe.position.set(0, 0.022, 0.06);
-            footGroup.add(centerToe);
+            const toeAngles = [-0.55, -0.18, 0.18, 0.55];
+            const toeLengths = [0.11, 0.14, 0.14, 0.11];
 
-            // Inner toe
-            const innerToeGeo = new THREE.BoxGeometry(0.042, 0.042, 0.10);
-            const innerToe = createVoxelBoxMesh(innerToeGeo, frogDarkGreenMat);
-            innerToe.position.set(-sign * 0.048, 0.021, 0.045);
-            innerToe.rotation.y = -sign * 0.32;
-            footGroup.add(innerToe);
+            for (let t = 0; t < 4; t++) {
+                const ang = toeAngles[t];
+                const len = toeLengths[t];
 
-            // Outer toe
-            const outerToeGeo = new THREE.BoxGeometry(0.042, 0.042, 0.10);
-            const outerToe = createVoxelBoxMesh(outerToeGeo, frogDarkGreenMat);
-            outerToe.position.set(sign * 0.048, 0.021, 0.045);
-            outerToe.rotation.y = sign * 0.36;
-            footGroup.add(outerToe);
+                // Toe shaft
+                const toeGeo = new THREE.BoxGeometry(0.026, 0.026, len);
+                const toe = createLowPolyMesh(toeGeo, frogGreenMat);
+                const tDist = len * 0.5;
+                toe.position.set(Math.sin(ang) * tDist, 0.013, Math.cos(ang) * tDist);
+                toe.rotation.y = ang;
+                footGroup.add(toe);
+
+                // Chunky hexagonal toe pad at tip
+                const padGeo = new THREE.CylinderGeometry(0.034, 0.034, 0.030, 6);
+                const pad = createLowPolyMesh(padGeo, frogGreenMat);
+                pad.position.set(Math.sin(ang) * len, 0.015, Math.cos(ang) * len);
+                footGroup.add(pad);
+            }
 
             legGroup.add(footGroup);
-            legGroup.position.set(sign * 0.22, 0.34, 0.20);
+            legGroup.position.set(sign * 0.20, 0.34, 0.20);
             return legGroup;
         }
 
@@ -1488,38 +1527,54 @@
         frogAnimRoot.add(frontLegL);
         frogAnimRoot.add(frontLegR);
 
-        // 4. Rear Crouched Hindlegs (Z-folded tightly along the flanks matching 27763.jpg)
+        // 4. Rear Crouched Hindlegs (Folded muscular thighs & 4-toed splayed feet)
         function createCrouchedHindleg(isLeft) {
             const legGroup = new THREE.Group();
             const sign = isLeft ? -1 : 1;
 
-            // Folded thigh/knee block (raised high on flank)
-            const thighGeo = new THREE.BoxGeometry(0.14, 0.26, 0.28);
-            const thigh = createVoxelBoxMesh(thighGeo, frogGreenMat);
-            thigh.position.set(sign * 0.02, 0.06, -0.04);
-            thigh.rotation.z = sign * -0.12;
+            // Folded muscular thigh on flank
+            const thighGeo = new THREE.DodecahedronGeometry(0.24, 1);
+            thighGeo.scale(0.72, 1.05, 1.35);
+            const thigh = createLowPolyMesh(thighGeo, frogGreenMat);
+            thigh.position.set(sign * 0.03, 0.06, -0.04);
+            thigh.rotation.set(-0.10, sign * 0.25, sign * -0.20);
             legGroup.add(thigh);
 
-            // Lower shin folded down to ground
-            const shinGeo = new THREE.BoxGeometry(0.12, 0.18, 0.18);
-            const shin = createVoxelBoxMesh(shinGeo, frogDarkGreenMat);
-            shin.position.set(sign * 0.04, -0.12, 0.02);
+            // Lower shin folded down against flank
+            const shinGeo = new THREE.CylinderGeometry(0.065, 0.042, 0.26, 6);
+            const shin = createLowPolyMesh(shinGeo, frogDarkGreenMat);
+            shin.position.set(sign * 0.06, -0.10, 0.06);
+            shin.rotation.set(0.35, sign * -0.15, sign * 0.10);
             legGroup.add(shin);
 
-            // Long flat hind foot resting on the floor with 3 toes pointing forward
+            // Wide splayed hind foot resting flat on the ground with 4 padded toes
             const hindFootGroup = new THREE.Group();
-            hindFootGroup.position.set(sign * 0.04, -0.22, 0.08);
+            hindFootGroup.position.set(sign * 0.06, -0.22, 0.08);
 
-            for (let t = -1; t <= 1; t++) {
-                const toeGeo = new THREE.BoxGeometry(0.045, 0.045, 0.13 - Math.abs(t) * 0.02);
-                const toe = createVoxelBoxMesh(toeGeo, frogGreenMat);
-                toe.position.set(t * 0.046, 0.022, 0.065);
-                toe.rotation.y = sign * (t * 0.18 + 0.12);
+            const hindToeAngles = [-0.60, -0.20, 0.18, 0.58];
+            const hindToeLengths = [0.12, 0.15, 0.15, 0.12];
+
+            for (let t = 0; t < 4; t++) {
+                const ang = hindToeAngles[t] + (sign * 0.12);
+                const len = hindToeLengths[t];
+
+                // Toe shaft
+                const toeGeo = new THREE.BoxGeometry(0.028, 0.028, len);
+                const toe = createLowPolyMesh(toeGeo, frogGreenMat);
+                const tDist = len * 0.5;
+                toe.position.set(Math.sin(ang) * tDist, 0.014, Math.cos(ang) * tDist);
+                toe.rotation.y = ang;
                 hindFootGroup.add(toe);
+
+                // Chunky hexagonal toe pad
+                const padGeo = new THREE.CylinderGeometry(0.036, 0.036, 0.032, 6);
+                const pad = createLowPolyMesh(padGeo, frogGreenMat);
+                pad.position.set(Math.sin(ang) * len, 0.016, Math.cos(ang) * len);
+                hindFootGroup.add(pad);
             }
             legGroup.add(hindFootGroup);
 
-            legGroup.position.set(sign * 0.32, 0.24, -0.06);
+            legGroup.position.set(sign * 0.30, 0.24, -0.06);
             return legGroup;
         }
 
