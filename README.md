@@ -90,39 +90,59 @@ flowchart TD
   * `🌟 HIGH` (โหมดความละเอียดสูง - สำหรับ PC/Retina): DPR 2.0x, เงา Soft Shadow ละเอียดสูง, อนุภาคละอองแดดและหมอกจัดเต็ม
 * **สลับได้ทันทีแบบ Real-time:** มีปุ่ม `[⚡ MED]` ที่แถบด้านบนสำหรับกดวนสลับโหมดได้ตลอดเวลา และจำการตั้งค่าผ่าน `localStorage`
 
+### 6. ระบบ WebApp (PWA) & ฐานข้อมูลตารางคะแนน (SQL Leaderboard)
+* **Progressive Web App (PWA):**
+  * มี `manifest.json` กำหนดธีมสีเขียวเข้มก้นบ่อ (`#042518`), โหมด Fullscreen Standalone, หน้าจอล็อคแนวตั้ง (Portrait)
+  * มี `sw.js` (Service Worker) แคชไฟล์เกมและ Texture ไว้ในเครื่อง เล่นแบบ Offline ได้ 100%
+  * ปุ่ม **`[📲 ติดตั้งแอป]`** แสดงอัตโนมัติบนเบราว์เซอร์ที่รองรับ ติดตั้งลงหน้าโฮมมือถือได้เสมือน Native App
+* **โครงสร้างฐานข้อมูล SQL (`schema.sql`):**
+  * ตาราง `leaderboard` จัดเก็บ: `player_name` (ชื่อผู้เล่น), `max_height` (ความสูงสูงสุดที่ทำได้), `clear_time_seconds` (เวลาที่ใช้เคลียร์/เล่น), `jump_count` (จำนวนครั้งที่กระโดด), `is_escaped` (หลุดพ้นปากบ่อสำเร็จหรือไม่), `device_type` (อุปกรณ์), `created_at` (วันเวลา)
+  * ดัชนี `idx_leaderboard_rank` เรียงลำดับตามความสูงสูงสุด (`max_height DESC`) และเวลาที่เร็วที่สุด (`clear_time_seconds ASC`)
+* **REST API & Node.js Server (`server.js`):**
+  * รันผ่าน Node.js ในตัวด้วยโมดูลมาตรฐาน `node:sqlite` ไม่ต้องติดตั้ง npm packages เพิ่มเติม
+  * โหมดสองประสาน (Dual-mode): เชื่อมต่อ SQLite เมื่อรันเซิร์ฟเวอร์ และสลับไปใช้ `localStorage` ทันทีเมื่อเปิดไฟล์เดี่ยว
+
 ---
 
 ## 📁 โครงสร้างโปรเจกต์ (Project Structure)
 
 ```text
 KobInKALA/
-├── index.html                   # ไฟล์หลัก โครงสร้าง HTML, UI HUD, แผง Inspector
+├── index.html                   # ไฟล์หลัก โครงสร้าง HTML, UI HUD, Leaderboard Modal, PWA Meta
 ├── style.css                    # สไตล์ CSS, Safe-area บนมือถือ, แอนิเมชัน UI
-├── game.js                      # ตรรกะเกมหลัก: Three.js, ฟิสิกส์, แสง, ผิวน้ำ, เสียง
+├── game.js                      # ตรรกะเกมหลัก: Three.js, ฟิสิกส์, ตัวจับเวลา, ตารางคะแนน
 ├── textures.js                  # Fallback WebP Base64 textures (รันไฟล์เดี่ยวได้ไม่ต้องต่อเน็ต)
+├── server.js                    # WebApp Server + SQLite API (Node.js native, Zero dependency)
+├── schema.sql                   # โครงสร้างฐานข้อมูล SQL เก็บชื่อ, ความสูง, เวลา, และสถิติ
+├── manifest.json                # Web App Manifest สำหรับติดตั้ง PWA บนมือถือ/เดสก์ท็อป
+├── sw.js                        # Service Worker รองรับ Offline Cache-First สมบูรณ์แบบ
 ├── README.md                    # เอกสารประกอบโปรเจกต์
 │
-├── well_stone_basecolor.webp    # PBR Texture: สีหินและมอส (1024x1024)
-├── well_stone_normal.webp       # PBR Texture: แผนผังรอยแตกและความนูน (1024x1024)
-├── well_stone_roughness.webp    # PBR Texture: แผนผังความหยาบ/ความเงา (1024x1024)
-└── well_stone_ao.webp           # PBR Texture: แผนผังเงามืดตามซอกหิน (1024x1024)
+└── images/                      # โฟลเดอร์รูปภาพ, ไอคอน PWA และ Textures
+    ├── icon-192.png             # PWA App Icon (192x192)
+    ├── icon-512.png             # PWA App Icon (512x512)
+    ├── well_stone_basecolor.webp # PBR Texture: สีหินและมอส (1024x1024)
+    ├── well_stone_normal.webp    # PBR Texture: แผนผังรอยแตกและความนูน (1024x1024)
+    ├── well_stone_roughness.webp # PBR Texture: แผนผังความหยาบ/ความเงา (1024x1024)
+    └── well_stone_ao.webp        # PBR Texture: แผนผังเงามืดตามซอกหิน (1024x1024)
 ```
 
 ---
 
-## 🕹️ การเปิดเล่นและวิธีควบคุม (How to Play)
+## 🕹️ การเปิดเล่นและวิธีใช้งาน (How to Play & WebApp)
 
-### วิธีเปิดเล่น
-1. **เปิดตรงผ่านเบราว์เซอร์ (Offline file:///):** ดับเบิลคลิกเปิดไฟล์ `index.html` ได้ทันที (มีระบบ Fallback ในตัว)
-2. **รันผ่าน Local Web Server (แนะนำ):**
+### วิธีเปิดเล่น (แนะนำ: รันเป็น WebApp & Leaderboard)
+1. **รัน WebApp Server ด้วย Node.js (แนะนำที่สุด):**
    ```bash
-   # ใช้ Python
-   python -m http.server 8000
-
-   # หรือใช้ Node.js
-   npx serve .
+   node server.js
    ```
-   แล้วเปิดเบราว์เซอร์ไปที่ `http://localhost:8000`
+   * ตัวเซิร์ฟเวอร์จะเปิดที่ `http://localhost:8000`
+   * สร้างฐานข้อมูล SQLite `leaderboard.db` อัตโนมัติจาก `schema.sql` พร้อมข้อมูลเริ่มต้น
+   * มี REST API: `GET /api/leaderboard` และ `POST /api/leaderboard`
+   * รองรับการติดตั้งเป็น Progressive Web App (PWA) บนหน้าจอมือถือ (Add to Home Screen)
+2. **เปิดตรงผ่านเบราว์เซอร์ (Offline file:/// หรือ Static Server):**
+   * ดับเบิลคลิกเปิดไฟล์ `index.html` ได้ทันที
+   * หากไม่ได้รันเซิร์ฟเวอร์ ระบบคะแนนจะสลับไปใช้ `localStorage` สำรองให้อัตโนมัติ เล่นได้ลื่นไหล 100% ไร้ข้อผิดพลาด
 
 ### การควบคุมบน Desktop
 | ปุ่ม / เมาส์ | การกระทำ |

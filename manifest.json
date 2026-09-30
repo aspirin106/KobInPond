@@ -1,0 +1,27 @@
+{
+  "name": "กบในกะลา 3D - KOB in the Coconut Shell",
+  "short_name": "กบในกะลา 3D",
+  "description": "เกม 3D กบในกะลากระโดดไต่ชานหินขึ้นสู่ปากบ่อชมแสงตะวัน",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#020704",
+  "theme_color": "#042518",
+  "lang": "th",
+  "categories": ["games", "entertainment"],
+  "icons": [
+    {
+      "src": "images/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "images/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

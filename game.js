@@ -410,10 +410,10 @@
             wellGeo.setAttribute('uv2', new THREE.BufferAttribute(wellGeo.attributes.uv.array.slice(), 2));
         }
 
-        const WELL_PBR_BASECOLOR = (window.WELL_PBR_DATA && window.WELL_PBR_DATA.basecolor) || 'well_stone_basecolor.webp';
-        const WELL_PBR_NORMAL = (window.WELL_PBR_DATA && window.WELL_PBR_DATA.normal) || 'well_stone_normal.webp';
-        const WELL_PBR_ROUGHNESS = (window.WELL_PBR_DATA && window.WELL_PBR_DATA.roughness) || 'well_stone_roughness.webp';
-        const WELL_PBR_AO = (window.WELL_PBR_DATA && window.WELL_PBR_DATA.ao) || 'well_stone_ao.webp';
+        const WELL_PBR_BASECOLOR = (window.WELL_PBR_DATA && window.WELL_PBR_DATA.basecolor) || 'images/well_stone_basecolor.webp';
+        const WELL_PBR_NORMAL = (window.WELL_PBR_DATA && window.WELL_PBR_DATA.normal) || 'images/well_stone_normal.webp';
+        const WELL_PBR_ROUGHNESS = (window.WELL_PBR_DATA && window.WELL_PBR_DATA.roughness) || 'images/well_stone_roughness.webp';
+        const WELL_PBR_AO = (window.WELL_PBR_DATA && window.WELL_PBR_DATA.ao) || 'images/well_stone_ao.webp';
 
         const wellTextureLoader = new THREE.TextureLoader();
 
@@ -1670,6 +1670,18 @@
             reachedWellTop: false
         };
 
+        // Run Timer & Score Tracking
+        let gameStartTime = null;
+        let runElapsedTime = 0;
+        let runMaxAltitude = 0;
+        let isRunActive = false;
+
+        function formatGameTime(totalSeconds) {
+            const m = Math.floor(totalSeconds / 60);
+            const s = (totalSeconds % 60).toFixed(1);
+            return `${m.toString().padStart(2, '0')}:${s < 10 ? '0' : ''}${s}`;
+        }
+
         const GRAVITY = 26.0;
         const MAX_JUMP_FORCE = 18.5;
         const MIN_JUMP_FORCE = 6.2;
@@ -1904,6 +1916,10 @@
 
         function startChargingJump() {
             if (!physics.onGround || physics.charging || physics.reachedWellTop) return;
+            if (!gameStartTime) {
+                gameStartTime = performance.now();
+                isRunActive = true;
+            }
             physics.charging = true;
             physics.chargePower = 0.05;
             chargeContainer.classList.remove('opacity-30');
@@ -2065,6 +2081,13 @@
             const altPct = Math.min(100, (physics.pos.y / WELL_HEIGHT) * 100);
             altitudeProgress.style.width = `${altPct}%`;
 
+            runMaxAltitude = Math.max(runMaxAltitude, physics.pos.y);
+            if (isRunActive && gameStartTime && !physics.reachedWellTop) {
+                runElapsedTime = (performance.now() - gameStartTime) / 1000;
+                const timerEl = document.getElementById('timer-text');
+                if (timerEl) timerEl.innerText = formatGameTime(runElapsedTime);
+            }
+
             checkAltitudeTriggers(physics.pos.y);
         }
 
@@ -2099,7 +2122,12 @@
 
         function triggerVictory() {
             physics.reachedWellTop = true;
+            isRunActive = false;
             statJumpCount.innerText = `${physics.jumpCount} ครั้ง`;
+            const statClearTime = document.getElementById('stat-clear-time');
+            if (statClearTime) {
+                statClearTime.innerText = formatGameTime(runElapsedTime);
+            }
             victoryModal.classList.remove('hidden');
             frogAudio.playFanfare();
         }
@@ -2111,7 +2139,14 @@
             physics.charging = false;
             physics.facingAngle = 0;
             physics.chargePower = 0;
+            physics.jumpCount = 0;
             physics.reachedWellTop = false;
+            gameStartTime = null;
+            runElapsedTime = 0;
+            runMaxAltitude = 0;
+            isRunActive = false;
+            const timerEl = document.getElementById('timer-text');
+            if (timerEl) timerEl.innerText = '00:00.0';
             inspectCamYOffset = null;
             victoryModal.classList.add('hidden');
             triggerSpeech("กลับมาอยู่ในกะลาอันอบอุ่นอีกครั้ง... ลุยใหม่กันเลย!");
@@ -2120,6 +2155,250 @@
 
         btnPlayAgain.addEventListener('click', resetToBottom);
         btnReset.addEventListener('click', resetToBottom);
+
+        // ============================================================
+        // LEADERBOARD & SQL DATABASE CLIENT (SQLite API + LocalStorage)
+        // ============================================================
+        const leaderboardModal = document.getElementById('leaderboard-modal');
+        const btnLeaderboard = document.getElementById('btn-leaderboard');
+        const btnCloseLeaderboard = document.getElementById('btn-close-leaderboard');
+        const btnSubmitScore = document.getElementById('btn-submit-score');
+        const inputPlayerName = document.getElementById('input-player-name');
+        const lbCurrentStats = document.getElementById('lb-current-stats');
+        const lbSaveStatus = document.getElementById('lb-save-status');
+        const lbLoading = document.getElementById('lb-loading');
+        const lbList = document.getElementById('lb-list');
+        const lbStorageType = document.getElementById('lb-storage-type');
+        const btnRefreshLb = document.getElementById('btn-refresh-lb');
+        const btnVictorySave = document.getElementById('btn-victory-save');
+
+        const DEFAULT_LEADERBOARD = [
+            { player_name: 'นายน้องกบยอดนักโดด', max_height: 65.00, clear_time_seconds: 48.20, jump_count: 14, is_escaped: 1 },
+            { player_name: 'เขียดน้อยติดสปีด ⚡', max_height: 65.00, clear_time_seconds: 56.40, jump_count: 16, is_escaped: 1 },
+            { player_name: 'กบซ่าท้าปากบ่อ 🐸', max_height: 58.40, clear_time_seconds: 72.10, jump_count: 22, is_escaped: 0 },
+            { player_name: 'อึ่งอ่างพลังสปริง', max_height: 42.10, clear_time_seconds: 51.30, jump_count: 15, is_escaped: 0 },
+            { player_name: 'เจ้าชายกบในกะลา', max_height: 35.80, clear_time_seconds: 39.50, jump_count: 12, is_escaped: 0 },
+            { player_name: 'คางคกสายชิลล์', max_height: 24.60, clear_time_seconds: 28.70, jump_count: 8, is_escaped: 0 },
+            { player_name: 'น้องกบมือใหม่หัดโดด', max_height: 12.30, clear_time_seconds: 15.20, jump_count: 4, is_escaped: 0 }
+        ];
+
+        function getLocalLeaderboard() {
+            try {
+                const stored = localStorage.getItem('kob_leaderboard_cache');
+                if (stored) return JSON.parse(stored);
+            } catch(e) {}
+            return DEFAULT_LEADERBOARD;
+        }
+
+        function saveLocalLeaderboard(list) {
+            try {
+                localStorage.setItem('kob_leaderboard_cache', JSON.stringify(list));
+            } catch(e) {}
+        }
+
+        async function fetchLeaderboardData() {
+            if (lbLoading) lbLoading.classList.remove('hidden');
+            if (lbList) lbList.classList.add('hidden');
+
+            let rows = null;
+            let isSqlite = false;
+
+            try {
+                const resp = await fetch('/api/leaderboard', { cache: 'no-store' });
+                if (resp.ok) {
+                    const json = await resp.json();
+                    if (json && json.success && Array.isArray(json.data)) {
+                        rows = json.data;
+                        isSqlite = true;
+                        saveLocalLeaderboard(rows);
+                    }
+                }
+            } catch(e) {}
+
+            if (!rows) {
+                rows = getLocalLeaderboard();
+                isSqlite = false;
+            }
+
+            renderLeaderboardRows(rows, isSqlite);
+        }
+
+        function renderLeaderboardRows(rows, isSqlite) {
+            if (lbLoading) lbLoading.classList.add('hidden');
+            if (!lbList) return;
+            lbList.innerHTML = '';
+
+            if (lbStorageType) {
+                lbStorageType.innerText = isSqlite
+                    ? '🗄️ ฐานข้อมูล: SQLite (server.js ออนไลน์)'
+                    : '📱 ฐานข้อมูล: Offline Cache (LocalStorage)';
+            }
+
+            rows.sort((a, b) => {
+                const diffH = (parseFloat(b.max_height) || 0) - (parseFloat(a.max_height) || 0);
+                if (Math.abs(diffH) > 0.05) return diffH;
+                return (parseFloat(a.clear_time_seconds) || 0) - (parseFloat(b.clear_time_seconds) || 0);
+            });
+
+            rows.forEach((row, idx) => {
+                const rank = idx + 1;
+                let medal = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : `${rank}.`;
+                const isEscaped = row.is_escaped ? true : false;
+                const timeStr = formatGameTime(parseFloat(row.clear_time_seconds) || 0);
+
+                const item = document.createElement('div');
+                item.className = 'flex items-center justify-between p-2 rounded-xl text-xs bg-slate-900/80 border ' + 
+                    (rank <= 3 ? 'border-amber-500/40 text-amber-200' : 'border-slate-800 text-slate-300');
+
+                item.innerHTML = `
+                    <div class="flex items-center gap-2 min-w-0">
+                        <span class="font-bold text-sm w-6 text-center">${medal}</span>
+                        <div class="truncate">
+                            <span class="font-bold text-white">${escapeHtml(row.player_name || 'กบนิรนาม')}</span>
+                            ${isEscaped ? '<span class="ml-1 text-[9px] bg-emerald-600/90 text-white px-1.5 py-0.2 rounded font-bold">พ้นบ่อ 🌤️</span>' : ''}
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-3 font-mono text-[11px] whitespace-nowrap">
+                        <span class="text-yellow-300 font-bold">${parseFloat(row.max_height).toFixed(1)}m</span>
+                        <span class="text-cyan-300">${timeStr}</span>
+                        <span class="text-slate-400 text-[10px]">(${row.jump_count || 0} โดด)</span>
+                    </div>
+                `;
+                lbList.appendChild(item);
+            });
+
+            lbList.classList.remove('hidden');
+        }
+
+        function escapeHtml(str) {
+            return String(str).replace(/[&<>"']/g, m => ({
+                '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+            }[m]));
+        }
+
+        function openLeaderboardModal() {
+            if (!leaderboardModal) return;
+            const currentH = Math.max(physics.pos.y, runMaxAltitude).toFixed(1);
+            const currentT = formatGameTime(runElapsedTime);
+            if (lbCurrentStats) {
+                lbCurrentStats.innerText = `สูง ${currentH}m | เวลา ${currentT} | โดด ${physics.jumpCount} ครั้ง`;
+            }
+            if (inputPlayerName && !inputPlayerName.value) {
+                const savedName = localStorage.getItem('kob_player_name');
+                if (savedName) inputPlayerName.value = savedName;
+            }
+            if (lbSaveStatus) lbSaveStatus.classList.add('hidden');
+            leaderboardModal.classList.remove('hidden');
+            fetchLeaderboardData();
+            frogAudio.playCroak();
+        }
+
+        if (btnLeaderboard) btnLeaderboard.addEventListener('click', openLeaderboardModal);
+        if (btnCloseLeaderboard) btnCloseLeaderboard.addEventListener('click', () => leaderboardModal.classList.add('hidden'));
+        if (btnRefreshLb) btnRefreshLb.addEventListener('click', fetchLeaderboardData);
+
+        if (btnVictorySave) {
+            btnVictorySave.addEventListener('click', () => {
+                victoryModal.classList.add('hidden');
+                openLeaderboardModal();
+            });
+        }
+
+        if (btnSubmitScore) {
+            btnSubmitScore.addEventListener('click', async () => {
+                const name = (inputPlayerName.value || 'นายน้องกบ').trim().slice(0, 30);
+                if (!name) return;
+
+                localStorage.setItem('kob_player_name', name);
+
+                const height = Math.max(0.1, parseFloat(Math.max(physics.pos.y, runMaxAltitude).toFixed(2)));
+                const clearTime = parseFloat(runElapsedTime.toFixed(2));
+                const jumpCount = physics.jumpCount;
+                const isEscaped = physics.reachedWellTop ? 1 : 0;
+                const deviceType = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) ? 'mobile' : 'desktop';
+
+                btnSubmitScore.disabled = true;
+                btnSubmitScore.innerText = 'กำลังบันทึก...';
+
+                let savedToApi = false;
+                try {
+                    const resp = await fetch('/api/leaderboard', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            player_name: name,
+                            max_height: height,
+                            clear_time_seconds: clearTime,
+                            jump_count: jumpCount,
+                            is_escaped: isEscaped,
+                            device_type: deviceType
+                        })
+                    });
+                    if (resp.ok) {
+                        const json = await resp.json();
+                        if (json && json.success) {
+                            savedToApi = true;
+                            if (json.data) {
+                                saveLocalLeaderboard(json.data);
+                                renderLeaderboardRows(json.data, true);
+                            }
+                        }
+                    }
+                } catch(e) {}
+
+                if (!savedToApi) {
+                    const currentList = getLocalLeaderboard();
+                    currentList.push({
+                        player_name: name,
+                        max_height: height,
+                        clear_time_seconds: clearTime,
+                        jump_count: jumpCount,
+                        is_escaped: isEscaped,
+                        device_type: deviceType,
+                        created_at: new Date().toISOString()
+                    });
+                    saveLocalLeaderboard(currentList);
+                    renderLeaderboardRows(currentList, false);
+                }
+
+                if (lbSaveStatus) {
+                    lbSaveStatus.innerText = savedToApi 
+                        ? '✅ บันทึกลงฐานข้อมูล SQLite สำเร็จ!' 
+                        : '💾 บันทึกลงหน่วยความจำเครื่องสำเร็จ (โหมดออฟไลน์)';
+                    lbSaveStatus.classList.remove('hidden');
+                }
+
+                btnSubmitScore.disabled = false;
+                btnSubmitScore.innerText = 'บันทึกอีกครั้ง';
+                frogAudio.playCroak();
+            });
+        }
+
+        // PWA WebApp Install Prompt
+        let deferredInstallPrompt = null;
+        window.addEventListener('beforeinstallprompt', e => {
+            e.preventDefault();
+            deferredInstallPrompt = e;
+            const btnInstall = document.getElementById('btn-install-app');
+            if (btnInstall) {
+                btnInstall.classList.remove('hidden');
+                btnInstall.classList.add('flex');
+            }
+        });
+
+        const btnInstallApp = document.getElementById('btn-install-app');
+        if (btnInstallApp) {
+            btnInstallApp.addEventListener('click', async () => {
+                if (deferredInstallPrompt) {
+                    deferredInstallPrompt.prompt();
+                    const { outcome } = await deferredInstallPrompt.userChoice;
+                    if (outcome === 'accepted') {
+                        btnInstallApp.classList.add('hidden');
+                    }
+                    deferredInstallPrompt = null;
+                }
+            });
+        }
 
         // PBR Wall Inspector Controls (STEP 1)
         const pbrInspectorPanel = document.getElementById('pbr-inspector-panel');
