@@ -763,7 +763,12 @@
         skyGlow.position.set(1.8, WELL_HEIGHT + 10.15, -0.8);
         envRoot.add(skyGlow);
 
-        // Irregular stone crown around the mouth of the well.
+        // STEP 5: 3D STONE DETAILS & SILHOUETTE GEOMETRY (Rim Stones, Protruding Wall Stones & Corbels)
+        // -----------------------------------------------------------------------------------------
+        const stoneDetailGroup = new THREE.Group();
+        envRoot.add(stoneDetailGroup);
+
+        // 1. Irregular stone crown around the mouth of the well (Coping Stones)
         const rimStoneGeo = new THREE.DodecahedronGeometry(0.72, 0);
         const rimStoneMat = new THREE.MeshStandardMaterial({ color: 0x4d574d, roughness: 0.94, metalness: 0.0, flatShading: true });
         const rimStoneCount = MOBILE_RENDER_BUDGET ? 24 : 34;
@@ -781,7 +786,28 @@
         rimStones.instanceMatrix.needsUpdate = true;
         rimStones.castShadow = true;
         rimStones.receiveShadow = true;
-        envRoot.add(rimStones);
+        stoneDetailGroup.add(rimStones);
+
+        // 2. Protruding Masonry Wall Stones (Physical blocks breaking the flat cylinder silhouette inside the shaft)
+        const wallStoneGeo = new THREE.DodecahedronGeometry(0.42, 0);
+        const wallStoneMat = new THREE.MeshStandardMaterial({ color: 0x435147, roughness: 0.92, metalness: 0.0, flatShading: true });
+        const wallStoneCount = MOBILE_RENDER_BUDGET ? 28 : 42;
+        const wallStones = new THREE.InstancedMesh(wallStoneGeo, wallStoneMat, wallStoneCount);
+        const wallStoneDummy = new THREE.Object3D();
+        for (let i = 0; i < wallStoneCount; i++) {
+            const a = (i / wallStoneCount) * Math.PI * 2 + (envRand() - 0.5) * 0.45;
+            const y = 3.2 + (i / wallStoneCount) * (WELL_HEIGHT - 8.0) + (envRand() - 0.5) * 1.6;
+            const rr = WELL_RADIUS - 0.14 + (envRand() - 0.5) * 0.16;
+            wallStoneDummy.position.set(Math.cos(a) * rr, y, Math.sin(a) * rr);
+            wallStoneDummy.rotation.set(envRand() * 0.5, -a + (envRand() - 0.5) * 0.4, envRand() * 0.5);
+            wallStoneDummy.scale.set(1.1 + envRand() * 0.6, 0.6 + envRand() * 0.4, 0.8 + envRand() * 0.5);
+            wallStoneDummy.updateMatrix();
+            wallStones.setMatrixAt(i, wallStoneDummy.matrix);
+        }
+        wallStones.instanceMatrix.needsUpdate = true;
+        wallStones.castShadow = true;
+        wallStones.receiveShadow = true;
+        stoneDetailGroup.add(wallStones);
 
         // Low-poly canopy around the opening. The center stays clear so the exit remains readable.
         const canopyGeo = new THREE.DodecahedronGeometry(0.48, 0);
@@ -1225,6 +1251,15 @@
         const totalSteps = 27;
         let currentAngle = 0.35;
 
+        // 3. Ancient Stone Corbel Wall Brackets (Anchoring platforms into the well cylinder wall)
+        const corbelGeo = new THREE.BoxGeometry(0.52, 0.42, 1.45);
+        const corbelMat = new THREE.MeshStandardMaterial({ color: 0x3d4b42, roughness: 0.94, flatShading: true });
+        const corbelStones = new THREE.InstancedMesh(corbelGeo, corbelMat, totalSteps);
+        corbelStones.castShadow = true;
+        corbelStones.receiveShadow = true;
+        stoneDetailGroup.add(corbelStones);
+        const corbelDummy = new THREE.Object3D();
+
         for (let i = 1; i <= totalSteps; i++) {
             const progress = i / totalSteps;
             const y = 2.4 + progress * (WELL_HEIGHT - 5.0);
@@ -1233,6 +1268,16 @@
 
             const x = Math.cos(currentAngle) * dist;
             const z = Math.sin(currentAngle) * dist;
+
+            // Support corbel stone protruding from well wall towards platform bottom
+            const normAngle = Math.atan2(z, x);
+            const midR = (dist + WELL_RADIUS) * 0.5;
+            corbelDummy.position.set(Math.cos(normAngle) * midR, y - 0.28, Math.sin(normAngle) * midR);
+            corbelDummy.rotation.y = -normAngle + Math.PI / 2;
+            corbelDummy.rotation.x = 0.10;
+            corbelDummy.scale.set(1.0, 0.9 + envRand() * 0.25, Math.max(0.65, (WELL_RADIUS - dist) * 0.92));
+            corbelDummy.updateMatrix();
+            corbelStones.setMatrixAt(i - 1, corbelDummy.matrix);
 
             const pGroup = new THREE.Group();
             const rad = 1.35 - (progress * 0.22);
@@ -1276,6 +1321,7 @@
                 height: 0.5
             });
         }
+        corbelStones.instanceMatrix.needsUpdate = true;
 
         // Final Exit Platform at the Top of the well
         platforms.push({
@@ -2235,6 +2281,145 @@
             });
         }
 
+        // 8. 3D Stones & Silhouette Controls (STEP 5)
+        const toggleStones = document.getElementById('toggle-stones');
+        let stonesEnabled = true;
+        if (toggleStones) {
+            toggleStones.addEventListener('click', () => {
+                stonesEnabled = !stonesEnabled;
+                stoneDetailGroup.visible = stonesEnabled;
+                toggleStones.innerText = `หิน 3D: ${stonesEnabled ? 'ON' : 'OFF'}`;
+                toggleStones.className = stonesEnabled
+                    ? 'bg-emerald-700 text-white py-1 rounded-lg text-[9px] font-bold text-center'
+                    : 'bg-rose-900 text-rose-200 py-1 rounded-lg text-[9px] font-bold text-center';
+            });
+        }
+
+        const btnRimCam = document.getElementById('btn-rim-cam');
+        if (btnRimCam) {
+            btnRimCam.addEventListener('click', () => {
+                inspectCamYOffset = 58.5;
+                camDistance = 6.2;
+                camPhi = 0.28;
+                triggerSpeech("ส่องหินขอบปากบ่อ แสงตะวัน และรากไม้โบราณ (58 เมตร)");
+                frogAudio.playCroak();
+            });
+        }
+
+        // 9. Quality Presets System (STEP 5: LOW / MEDIUM / HIGH)
+        const qualityDescriptions = {
+            LOW: 'DPR 1.0x, ปิดเงา Shadow, ก้อนหิน 3D ย่อส่วน (ประหยัดพลังงาน)',
+            MEDIUM: 'DPR 1.5x, เงา Soft Shadows, หิน 3D ครบถ้วน (แนะนำสำหรับมือถือทั่วไป)',
+            HIGH: 'DPR 2.0x, เงาความละเอียดสูง, ละอองแสงเต็มรูปแบบ (สำหรับ PC / หน้าจอคมชัดสูง)'
+        };
+
+        let currentQuality = 'MEDIUM';
+
+        function setGraphicsQuality(level, announce = false) {
+            currentQuality = level;
+            const isLow = level === 'LOW';
+            const isHigh = level === 'HIGH';
+
+            // 1. Pixel Ratio & Size
+            let targetDPR = 1.0;
+            if (isHigh) {
+                targetDPR = Math.min(window.devicePixelRatio || 1, 2.0);
+            } else if (level === 'MEDIUM') {
+                targetDPR = Math.min(window.devicePixelRatio || 1, 1.5);
+            } else {
+                targetDPR = 1.0;
+            }
+            renderer.setPixelRatio(targetDPR);
+            renderer.setSize(getW(), getH());
+
+            // 2. Shadows
+            const wantShadows = !isLow;
+            if (renderer.shadowMap.enabled !== wantShadows) {
+                renderer.shadowMap.enabled = wantShadows;
+                renderer.shadowMap.type = isHigh ? THREE.PCFSoftShadowMap : THREE.BasicShadowMap;
+                scene.traverse(obj => {
+                    if (obj.material) {
+                        if (Array.isArray(obj.material)) {
+                            obj.material.forEach(m => m.needsUpdate = true);
+                        } else {
+                            obj.material.needsUpdate = true;
+                        }
+                    }
+                });
+            }
+
+            // 3. 3D Stone Details & Vegetation
+            stoneDetailGroup.visible = !isLow;
+            if (toggleStones) {
+                stonesEnabled = !isLow;
+                toggleStones.innerText = `หิน 3D: ${stonesEnabled ? 'ON' : 'OFF'}`;
+                toggleStones.className = stonesEnabled
+                    ? 'bg-emerald-700 text-white py-1 rounded-lg text-[9px] font-bold text-center'
+                    : 'bg-rose-900 text-rose-200 py-1 rounded-lg text-[9px] font-bold text-center';
+            }
+
+            // 4. Mists & Sun Motes Density
+            if (mist) {
+                mist.material.opacity = isLow ? 0.08 : (isHigh ? 0.28 : 0.22);
+            }
+            if (sunMotes) {
+                sunMotes.visible = !isLow;
+            }
+
+            // 5. Persist
+            try {
+                localStorage.setItem('kob_kala_quality', level);
+            } catch(e) {}
+
+            // 6. UI Updates
+            const labelQuickQuality = document.getElementById('label-quick-quality');
+            if (labelQuickQuality) {
+                labelQuickQuality.innerText = level === 'MEDIUM' ? 'MED' : level;
+            }
+
+            const qualityDesc = document.getElementById('quality-desc');
+            if (qualityDesc && qualityDescriptions[level]) {
+                qualityDesc.innerText = qualityDescriptions[level];
+            }
+
+            ['low', 'med', 'high'].forEach(l => {
+                const btn = document.getElementById(`btn-quality-${l}`);
+                if (btn) {
+                    const matches = (l === 'med' && level === 'MEDIUM') || (l.toUpperCase() === level);
+                    if (matches) {
+                        btn.className = 'btn-quality-opt bg-emerald-600 text-white py-1 px-1 rounded-lg text-[9px] font-bold text-center border border-emerald-400';
+                    } else {
+                        btn.className = 'btn-quality-opt bg-slate-800 hover:bg-slate-700 text-slate-300 py-1 px-1 rounded-lg text-[9px] text-center border border-slate-700';
+                    }
+                }
+            });
+
+            if (announce) {
+                triggerSpeech(`ปรับคุณภาพกราฟิกเป็นระดับ ${level}: ${qualityDescriptions[level]}`);
+                frogAudio.playCroak();
+            }
+        }
+
+        // Quick toggle button in top bar
+        const btnQuickQuality = document.getElementById('btn-quick-quality');
+        if (btnQuickQuality) {
+            btnQuickQuality.addEventListener('click', () => {
+                const order = ['LOW', 'MEDIUM', 'HIGH'];
+                const nextIdx = (order.indexOf(currentQuality) + 1) % order.length;
+                setGraphicsQuality(order[nextIdx], true);
+            });
+        }
+
+        // Inspector Quality Buttons
+        const btnQuesLow = document.getElementById('btn-quality-low');
+        if (btnQuesLow) btnQuesLow.addEventListener('click', () => setGraphicsQuality('LOW', true));
+
+        const btnQuesMed = document.getElementById('btn-quality-med');
+        if (btnQuesMed) btnQuesMed.addEventListener('click', () => setGraphicsQuality('MEDIUM', true));
+
+        const btnQuesHigh = document.getElementById('btn-quality-high');
+        if (btnQuesHigh) btnQuesHigh.addEventListener('click', () => setGraphicsQuality('HIGH', true));
+
         // Height inspection view buttons
         document.querySelectorAll('.btn-cam-view').forEach(btn => {
             btn.addEventListener('click', () => {
@@ -2291,6 +2476,16 @@
             }
 
             camera.updateProjectionMatrix();
+
+            let targetDPR = 1.0;
+            if (currentQuality === 'HIGH') {
+                targetDPR = Math.min(window.devicePixelRatio || 1, 2.0);
+            } else if (currentQuality === 'MEDIUM') {
+                targetDPR = Math.min(window.devicePixelRatio || 1, 1.5);
+            } else {
+                targetDPR = 1.0;
+            }
+            renderer.setPixelRatio(targetDPR);
             renderer.setSize(w, h);
         }
 
@@ -2401,6 +2596,9 @@
         }
 
         function launchGame() {
+            const isMobileDevice = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
+            const savedQuality = localStorage.getItem('kob_kala_quality') || (isMobileDevice ? 'MEDIUM' : 'HIGH');
+            setGraphicsQuality(savedQuality, false);
             handleResize();
             requestAnimationFrame(animate);
         }
