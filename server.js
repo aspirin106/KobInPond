@@ -53,7 +53,6 @@ const MIME_TYPES = {
     '.jpg': 'image/jpeg',
     '.jpeg': 'image/jpeg',
     '.svg': 'image/svg+xml',
-    '.sql': 'text/plain; charset=utf-8',
     '.ico': 'image/x-icon'
 };
 
@@ -62,7 +61,9 @@ const server = http.createServer((req, res) => {
     const parsedUrl = new URL(req.url, `http://${req.headers.host}`);
     const pathname = parsedUrl.pathname;
 
-    // CORS Headers for API
+    // Security & CORS Headers
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('X-Frame-Options', 'SAMEORIGIN');
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -107,8 +108,25 @@ const server = http.createServer((req, res) => {
         }
 
         let body = '';
-        req.on('data', chunk => body += chunk);
+        let bodyLength = 0;
+        const MAX_BODY_SIZE = 10 * 1024; // 10 KB limit
+        let isTooLarge = false;
+
+        req.on('data', chunk => {
+            if (isTooLarge) return;
+            bodyLength += chunk.length;
+            if (bodyLength > MAX_BODY_SIZE) {
+                isTooLarge = true;
+                res.writeHead(413, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ error: 'Payload too large (max 10KB)' }));
+                req.destroy();
+                return;
+            }
+            body += chunk;
+        });
+
         req.on('end', () => {
+            if (isTooLarge) return;
             try {
                 const data = JSON.parse(body || '{}');
                 const playerName = (data.player_name || 'นายน้องกบ').trim().slice(0, 50);
@@ -136,19 +154,40 @@ const server = http.createServer((req, res) => {
                 res.end(JSON.stringify({ success: true, message: 'บันทึกคะแนนสำเร็จ', data: rows }));
             } catch (err) {
                 res.writeHead(400, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({ error: err.message }));
+                res.end(JSON.stringify({ error: 'Invalid request data' }));
             }
         });
         return;
     }
 
     // --- Static File Serving ---
-    let filePath = path.join(__dirname, pathname === '/' ? 'index.html' : pathname);
+    // 1. Block dotfiles / hidden paths (.git, .env, .codegraph, etc.)
+    const pathSegments = pathname.split('/');
+    if (pathSegments.some(seg => seg.startsWith('.'))) {
+        res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
+        res.end('404 Not Found');
+        return;
+    }
 
-    // Prevent directory traversal
-    if (!filePath.startsWith(__dirname)) {
-        res.writeHead(403);
+    const safeDir = path.resolve(__dirname);
+    const targetRel = pathname === '/' ? 'index.html' : pathname.replace(/^\/+/, '');
+    const filePath = path.resolve(safeDir, targetRel);
+
+    // 2. Prevent path traversal outside safeDir
+    if (!filePath.startsWith(safeDir + path.sep) && filePath !== path.join(safeDir, 'index.html')) {
+        res.writeHead(403, { 'Content-Type': 'text/plain; charset=utf-8' });
         res.end('Forbidden');
+        return;
+    }
+
+    // 3. Block sensitive server files and unapproved extensions
+    const filename = path.basename(filePath);
+    const ext = path.extname(filePath).toLowerCase();
+    const BLOCKED_FILES = new Set(['server.js', 'schema.sql', 'package.json']);
+
+    if (BLOCKED_FILES.has(filename) || ext === '.db' || ext === '.sql' || !MIME_TYPES[ext]) {
+        res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
+        res.end('404 Not Found');
         return;
     }
 
@@ -159,9 +198,7 @@ const server = http.createServer((req, res) => {
             return;
         }
 
-        const ext = path.extname(filePath).toLowerCase();
-        const contentType = MIME_TYPES[ext] || 'application/octet-stream';
-
+        const contentType = MIME_TYPES[ext];
         res.writeHead(200, { 'Content-Type': contentType });
         const stream = fs.createReadStream(filePath);
         stream.pipe(res);
